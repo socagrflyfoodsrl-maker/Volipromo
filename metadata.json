@@ -1,0 +1,6 @@
+{
+  "name": "Prenotazioni Volo Duneairpark",
+  "description": "Piattaforma di prenotazione per voli promozionali in ultraleggero tra Fasano e Ostuni, con partenza dal campo di volo Duneairpark.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
