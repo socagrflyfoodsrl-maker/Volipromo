@@ -30,11 +30,8 @@ export default function BookingForm({
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<string>("");
 
-  // Payment state
-  const [cardName, setCardName] = useState<string>("");
-  const [cardNumber, setCardNumber] = useState<string>("");
-  const [cardExpiry, setCardExpiry] = useState<string>("");
-  const [cardCvv, setCardCvv] = useState<string>("");
+  // Payment state - Payment is on-field (POS or cash)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("POS o Carta di Credito (al campo)");
 
   // Completed booking placeholder
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null);
@@ -77,26 +74,7 @@ export default function BookingForm({
   // Validation helpers
   const isStep1Valid = name.trim() !== "" && email.includes("@") && phone.trim().length >= 8 && isWeightValid;
   const isStep2Valid = selectedDate !== "" && selectedSlot !== "";
-  const isStep3Valid = cardName.trim() !== "" && cardNumber.replace(/\s/g, "").length === 16 && cardExpiry.length === 5 && cardCvv.length === 3;
-
-  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, "");
-    const formatted = val.replace(/(\d{4})(?=\d)/g, "$1 ").substring(0, 19);
-    setCardNumber(formatted);
-  };
-
-  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let val = e.target.value.replace(/\D/g, "");
-    if (val.length >= 2) {
-      val = val.substring(0, 2) + "/" + val.substring(2, 4);
-    }
-    setCardExpiry(val.substring(0, 5));
-  };
-
-  const handleCvvChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, "");
-    setCardCvv(val.substring(0, 3));
-  };
+  const isStep3Valid = selectedPaymentMethod !== "";
 
   // Process Booking with server
   const handleCheckout = async (e: React.FormEvent) => {
@@ -104,11 +82,11 @@ export default function BookingForm({
     if (!isStep3Valid) return;
 
     setLoading(true);
-    setLoadingMessage("Elaborazione del pagamento sicuro...");
+    setLoadingMessage("Elaborazione della prenotazione...");
 
-    // Stage 1: Process Payment
+    // Stage 1: Confirm selection
     setTimeout(() => {
-      setLoadingMessage("Pagamento approvato! Registrazione prenotazione nel server...");
+      setLoadingMessage("Registrazione prenotazione nel server...");
 
       // Stage 2: Save Booking and Trigger Notifications
       setTimeout(async () => {
@@ -128,7 +106,7 @@ export default function BookingForm({
               experienceId: selectedPackage.id,
               experienceName: selectedPackage.name,
               price: selectedPackage.price,
-              paymentMethod: "Carta di Credito",
+              paymentMethod: selectedPaymentMethod,
             }),
           });
 
@@ -156,7 +134,7 @@ export default function BookingForm({
             experienceId: selectedPackage.id,
             experienceName: selectedPackage.name,
             price: selectedPackage.price,
-            paymentMethod: "Carta di Credito",
+            paymentMethod: selectedPaymentMethod,
             status: "confirmed",
             createdAt: new Date().toISOString(),
           };
@@ -167,8 +145,8 @@ export default function BookingForm({
           setLoading(false);
           setLoadingMessage("");
         }
-      }, 1500);
-    }, 1500);
+      }, 1000);
+    }, 1000);
   };
 
   const resetForm = () => {
@@ -178,10 +156,7 @@ export default function BookingForm({
     setWeight("");
     setSelectedDate("");
     setSelectedSlot("");
-    setCardName("");
-    setCardNumber("");
-    setCardExpiry("");
-    setCardCvv("");
+    setSelectedPaymentMethod("POS o Carta di Credito (al campo)");
     setCompletedBooking(null);
     setStep(1);
   };
@@ -201,7 +176,7 @@ export default function BookingForm({
             {[
               { num: 1, label: "Contatti" },
               { num: 2, label: "Data" },
-              { num: 3, label: "Pagamento" },
+              { num: 3, label: "Conferma" },
             ].map((s) => (
               <div key={s.num} className="flex items-center gap-1.5">
                 <span
@@ -503,13 +478,13 @@ export default function BookingForm({
                     : "bg-slate-100 text-slate-400 cursor-not-allowed"
                 }`}
               >
-                Procedi al Pagamento <ChevronRight className="w-4 h-4" />
+                Riepilogo e Conferma <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </motion.div>
         )}
 
-        {/* Step 3: Payment Portal Simulation */}
+        {/* Step 3: Payment Choice & Summary */}
         {step === 3 && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -533,99 +508,115 @@ export default function BookingForm({
 
             <form onSubmit={handleCheckout} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                {/* Simulated Card input fields */}
+                
+                {/* Payment Selection Card */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-slate-750 uppercase tracking-wider flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-sky-600" /> Pagamento Sicuro con Carta
+                    <CreditCard className="w-4 h-4 text-sky-600" /> 3. Metodo di Pagamento in Loco
                   </h3>
+                  <p className="text-xs text-slate-450">
+                    Il pagamento avviene direttamente sul campo di volo il giorno dell'esperienza. Seleziona la tua preferenza:
+                  </p>
 
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">Titolare della Carta *</label>
-                      <input
-                        type="text"
-                        placeholder="E.g. Mario Rossi"
-                        value={cardName}
-                        onChange={(e) => setCardName(e.target.value)}
-                        className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-colors"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">Numero Carta di Credito *</label>
-                      <input
-                        type="text"
-                        placeholder="0000 0000 0000 0000"
-                        value={cardNumber}
-                        onChange={handleCardNumberChange}
-                        className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-colors font-mono"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-3">
+                    {/* Option 1: POS / Card */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentMethod("POS o Carta di Credito (al campo)")}
+                      className={`w-full p-4 rounded-xl border-2 text-left transition-all flex items-start gap-3.5 ${
+                        selectedPaymentMethod === "POS o Carta di Credito (al campo)"
+                          ? "bg-sky-50 border-sky-600 shadow-md"
+                          : "bg-white border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
+                        selectedPaymentMethod === "POS o Carta di Credito (al campo)"
+                          ? "border-sky-600 text-sky-600"
+                          : "border-slate-300 text-transparent"
+                      }`}>
+                        <span className="w-2 h-2 rounded-full bg-sky-600" />
+                      </span>
                       <div>
-                        <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">Scadenza *</label>
-                        <input
-                          type="text"
-                          placeholder="MM/AA"
-                          value={cardExpiry}
-                          onChange={handleExpiryChange}
-                          className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-colors font-mono"
-                        />
+                        <span className="text-xs font-bold block text-slate-800">POS o Carta di Credito / Debito</span>
+                        <span className="text-[11px] text-slate-500 leading-relaxed block mt-1">
+                          Accettiamo tutte le carte, bancomat, Apple Pay e Google Pay sul campo di volo.
+                        </span>
                       </div>
+                    </button>
+
+                    {/* Option 2: Cash */}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPaymentMethod("Contanti (al campo)")}
+                      className={`w-full p-4 rounded-xl border-2 text-left transition-all flex items-start gap-3.5 ${
+                        selectedPaymentMethod === "Contanti (al campo)"
+                          ? "bg-sky-50 border-sky-600 shadow-md"
+                          : "bg-white border-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
+                        selectedPaymentMethod === "Contanti (al campo)"
+                          ? "border-sky-600 text-sky-600"
+                          : "border-slate-300 text-transparent"
+                      }`}>
+                        <span className="w-2 h-2 rounded-full bg-sky-600" />
+                      </span>
                       <div>
-                        <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">CVV *</label>
-                        <input
-                          type="password"
-                          placeholder="123"
-                          value={cardCvv}
-                          onChange={handleCvvChange}
-                          className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-colors font-mono"
-                        />
+                        <span className="text-xs font-bold block text-slate-800">Contanti</span>
+                        <span className="text-[11px] text-slate-500 leading-relaxed block mt-1">
+                          Paga direttamente in contanti il giorno del volo presso la nostra sede al campo di volo.
+                        </span>
                       </div>
-                    </div>
+                    </button>
                   </div>
                 </div>
 
-                {/* Secure payment graphics & card visual preview */}
-                <div className="bg-gradient-to-br from-sky-900 to-slate-900 text-white p-6 rounded-2xl shadow-xl flex flex-col justify-between h-48 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 rounded-full blur-2xl" />
-                  <div className="flex justify-between items-start">
+                {/* Summary / Confirmation graphic */}
+                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-sky-950 text-white p-6 rounded-2xl shadow-xl space-y-4">
+                  <div className="flex justify-between items-start border-b border-white/10 pb-3">
                     <div>
-                      <span className="text-[9px] tracking-wider text-sky-300 font-mono block font-bold">DUNEAIRPARK FLIGHT CARD</span>
-                      <span className="text-[10px] text-slate-400">Puglia Air Promotional Booking</span>
+                      <span className="text-[9px] tracking-widest text-sky-400 font-mono block font-bold">DUNEAIRPARK RESERVATION</span>
+                      <h4 className="text-sm font-bold text-white mt-1">Riepilogo Passeggero</h4>
                     </div>
-                    <span className="text-xl">✈️</span>
+                    <span className="text-2xl">✈️</span>
                   </div>
 
-                  <div className="text-sm tracking-widest font-mono py-1">
-                    {cardNumber || "•••• •••• •••• ••••"}
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Passeggero:</span>
+                      <span className="font-bold text-white text-right">{name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Telefono:</span>
+                      <span className="font-semibold text-slate-200 text-right">{phone}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Email:</span>
+                      <span className="font-semibold text-slate-200 text-right max-w-[180px] truncate">{email}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Peso Passeggero:</span>
+                      <span className="font-semibold text-slate-200 text-right">{weight} kg</span>
+                    </div>
+                    <div className="flex justify-between pt-2 border-t border-white/10">
+                      <span className="text-slate-400">Data e Fascia:</span>
+                      <span className="font-bold text-sky-400 text-right">{selectedDate} ({selectedSlot})</span>
+                    </div>
+                    <div className="flex justify-between items-baseline pt-2">
+                      <span className="text-slate-400">Importo da saldare:</span>
+                      <span className="text-base font-black text-emerald-400 font-mono">€{selectedPackage.price}</span>
+                    </div>
                   </div>
 
-                  <div className="flex justify-between items-end">
-                    <div>
-                      <span className="text-[8px] text-slate-400 block">CARDHOLDER</span>
-                      <span className="text-[11px] font-bold uppercase truncate max-w-[150px]">
-                        {cardName || "MARIO ROSSI"}
-                      </span>
-                    </div>
-                    <div className="flex gap-4">
-                      <div>
-                        <span className="text-[8px] text-slate-400 block">EXPIRES</span>
-                        <span className="text-[11px] font-mono">{cardExpiry || "MM/AA"}</span>
-                      </div>
-                      <div>
-                        <span className="text-[8px] text-slate-400 block">CVV</span>
-                        <span className="text-[11px] font-mono">***</span>
-                      </div>
-                    </div>
+                  <div className="bg-white/5 rounded-xl p-3 border border-white/10 text-[10px] text-slate-300 leading-relaxed">
+                    ℹ️ Nessun addebito online. Riceverai immediatamente una mail con la conferma della prenotazione.
                   </div>
                 </div>
               </div>
 
               <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-200 flex items-center gap-2 justify-center text-[10.5px] text-slate-500 font-medium">
-                <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Transazione crittografata a 256-bit. Nessun dato reale della carta viene archiviato.</span>
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Nessuna carta richiesta. Pagamento sul campo con POS o Contanti al momento del volo.</span>
               </div>
 
               {/* Step 3 Actions */}
@@ -646,7 +637,7 @@ export default function BookingForm({
                       : "bg-slate-100 text-slate-400 cursor-not-allowed"
                   }`}
                 >
-                  Paga & Conferma Ora €{selectedPackage.price}
+                  Conferma Prenotazione €{selectedPackage.price}
                 </button>
               </div>
             </form>
@@ -665,9 +656,9 @@ export default function BookingForm({
             </div>
 
             <div className="space-y-1 max-w-md mx-auto">
-              <h3 className="text-2xl font-display font-black text-slate-800">Pagamento & Volo Confermato!</h3>
+              <h3 className="text-2xl font-display font-black text-slate-800">Volo Prenotato & Confermato!</h3>
               <p className="text-xs text-slate-500">
-                La prenotazione è stata elaborata con successo con codice identificativo unico.
+                La prenotazione è stata completata con successo. Pagamento in loco il giorno del volo.
               </p>
             </div>
 
@@ -710,11 +701,11 @@ export default function BookingForm({
                     <span className="text-[11px] font-bold text-slate-800 truncate block">{completedBooking.experienceName}</span>
                   </div>
                   <div className="text-center">
-                    <span className="text-[8px] text-slate-400 uppercase block">PESO PASSEGGERO</span>
-                    <span className="text-xs font-bold text-slate-800">{completedBooking.weight} kg</span>
+                    <span className="text-[8px] text-slate-400 uppercase block">PAGAMENTO</span>
+                    <span className="text-[10px] font-bold text-slate-700 block truncate">{completedBooking.paymentMethod}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[8px] text-slate-400 uppercase block">PAGATO</span>
+                    <span className="text-[8px] text-slate-400 uppercase block">DA PAGARE IN LOCO</span>
                     <span className="text-xs font-extrabold text-emerald-600">€{completedBooking.price}</span>
                   </div>
                 </div>

@@ -90,9 +90,9 @@ Dettagli Volo:
 - Esperienza: ${experienceName} (${experienceId})
 - Data: ${date}
 - Fascia Oraria: ${timeSlot}
-- Importo Pagato: €${price} (Metodo: ${paymentMethod})
+- Importo da saldare in loco: €${price} (Metodo preferito: ${paymentMethod})
 
-La prenotazione è stata CONFERMATA subito dopo il pagamento.
+La prenotazione è stata CONFERMATA. Il pagamento avverrà direttamente al campo di volo (POS o contanti).
 Si prega di monitorare il meteo per il giorno selezionato.
 ============================================================
 `;
@@ -103,7 +103,8 @@ CUSTOMER NOTIFICATION LOG: EMAIL TO CUSTOMER (${email})
 Subject: [Duneairpark] Conferma Prenotazione Volo Ultraleggero - ${bookingId}
 ------------------------------------------------------------
 Gentile ${name},
-Il tuo pagamento è andato a buon fine! Ti confermiamo la prenotazione del tuo volo promozionale in ultraleggero.
+Ti confermiamo la prenotazione del tuo volo promozionale in ultraleggero!
+Il pagamento dell'esperienza avverrà direttamente al campo di volo il giorno dell'esperienza (tramite POS/Carta o in contanti). Non è richiesto alcun pagamento anticipato online.
 
 Ecco il tuo riepilogo:
 - Codice Prenotazione: ${bookingId}
@@ -112,6 +113,7 @@ Ecco il tuo riepilogo:
 - Data: ${date}
 - Fascia Oraria: ${timeSlot}
 - Peso inserito: ${weight} kg
+- Importo da saldare in loco: €${price} (Metodo preferito: ${paymentMethod})
 
 Pilota di riferimento: Istruttore Guarini (guarinivolo1964@gmail.com)
 
@@ -185,7 +187,7 @@ Informazioni Chiave per rispondere:
    - Peso massimo consentito per il passeggero: 100 kg (per bilanciamento dell'ultraleggero).
    - Età minima: 16 anni (con consenso dei genitori).
    - Meteo: Il volo in ultraleggero è subordinato alle condizioni meteorologiche. Se il pilota valuta che il vento o la visibilità non sono idonei, il volo viene rimandato e riprogrammato in accordo con il passeggero (senza costi).
-   - Prenotazioni: Si effettuano online sul sito. Una volta effettuato il pagamento sicuro, viene inviata un'email automatica di conferma a guarinivolo1964@gmail.com e al passeggero, oltre a una notifica istantanea sullo schermo.
+   - Prenotazioni: Si effettuano online sul sito senza pagamento anticipato. Una volta confermata la prenotazione, viene inviata un'email automatica di conferma a guarinivolo1964@gmail.com e al passeggero. Il pagamento avverrà direttamente al campo di volo tramite POS o contanti.
 
 Rispondi sempre in italiano in modo chiaro ed esaustivo, incoraggiando l'utente a prenotare questa magnifica esperienza o a fare domande sulla sicurezza, la durata e le rotte. Non inventare dati non indicati.
 `;
