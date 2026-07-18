@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
+import fs from "fs";
 
 dotenv.config({ override: true });
 
@@ -34,8 +35,30 @@ interface EmailLog {
   error?: string;
 }
 
-// In-memory store for bookings and email logs in this container session
-const bookings: Booking[] = [];
+const BOOKINGS_FILE = path.join(process.cwd(), "bookings.json");
+
+function loadBookings(): Booking[] {
+  try {
+    if (fs.existsSync(BOOKINGS_FILE)) {
+      const data = fs.readFileSync(BOOKINGS_FILE, "utf-8");
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error("Errore nel caricamento delle prenotazioni:", err);
+  }
+  return [];
+}
+
+const bookings: Booking[] = loadBookings();
+
+function saveBookings() {
+  try {
+    fs.writeFileSync(BOOKINGS_FILE, JSON.stringify(bookings, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Errore nel salvataggio delle prenotazioni:", err);
+  }
+}
+
 const emailLogs: EmailLog[] = [];
 
 // Clean environment values safely
@@ -210,6 +233,8 @@ async function startServer() {
       };
 
       bookings.push(newBooking);
+      saveBookings();
+
 
       const emailTextToPilot = `Ciao Pilota Guarini,
 Hai ricevuto una nuova prenotazione per un volo promozionale in ultraleggero!
@@ -292,6 +317,59 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
 
     return res.json({ bookings: filtered });
   });
+
+  // Middleware to authenticate admin requests
+  const checkAdminAuth = (req: any, res: any, next: any) => {
+    const authHeader = req.headers.authorization;
+    const adminPass = cleanEnvVal(process.env.ADMIN_PASSWORD) || "dune2026";
+    if (authHeader === adminPass) {
+      return next();
+    }
+    return res.status(401).json({ error: "Accesso non autorizzato. Password amministratore non valida." });
+  };
+
+  // API Route: Admin login
+  app.post("/api/admin/login", (req, res) => {
+    const { password } = req.body;
+    const adminPass = cleanEnvVal(process.env.ADMIN_PASSWORD) || "dune2026";
+    if (password === adminPass) {
+      return res.json({ success: true });
+    }
+    return res.status(401).json({ success: false, error: "Password errata." });
+  });
+
+  // API Route: Get ALL bookings (Admin only)
+  app.get("/api/admin/bookings", checkAdminAuth, (req, res) => {
+    return res.json({ bookings });
+  });
+
+  // API Route: Update Booking Status (Admin only)
+  app.post("/api/admin/bookings/update-status", checkAdminAuth, (req, res) => {
+    const { bookingId, status } = req.body;
+    const booking = bookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
+    if (!booking) {
+      return res.status(404).json({ error: "Prenotazione non trovata." });
+    }
+    if (status === "confirmed" || status === "pending_weather") {
+      booking.status = status;
+      saveBookings();
+      return res.json({ success: true, booking });
+    }
+    return res.status(400).json({ error: "Stato non valido." });
+  });
+
+  // API Route: Delete Booking (Admin only)
+  app.post("/api/admin/bookings/delete", checkAdminAuth, (req, res) => {
+    const { bookingId } = req.body;
+    const index = bookings.findIndex(b => b.id.toLowerCase() === bookingId.toLowerCase());
+    if (index === -1) {
+      return res.status(404).json({ error: "Prenotazione non trovata." });
+    }
+    bookings.splice(index, 1);
+    saveBookings();
+    return res.json({ success: true, message: "Prenotazione eliminata correttamente." });
+  });
+
 
   // API Route: Get Email Config status
   app.get("/api/email/config", (req, res) => {
