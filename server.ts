@@ -2,7 +2,6 @@ import express from "express";
 import path from "path";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
-import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 import fs from "fs";
 
@@ -238,7 +237,7 @@ const PORT = 3000;
 
 app.use(express.json());
 
-async function startServer() {
+// Define all routes synchronously to prevent race conditions or 404s on serverless platforms (like Vercel)
 
   // API Route: Create Booking & Simulate Payment + Email Notifications
   app.post("/api/book", async (req, res) => {
@@ -575,30 +574,34 @@ Rispondi sempre in italiano in modo chiaro ed esaustivo, incoraggiando l'utente 
     }
   });
 
-  // Vite integration middleware
+  // Vite integration middleware & Server listener for local environments
   if (!process.env.VERCEL) {
     if (process.env.NODE_ENV !== "production") {
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
+      import("vite").then(({ createServer: createViteServer }) => {
+        createViteServer({
+          server: { middlewareMode: true },
+          appType: "spa",
+        }).then((vite) => {
+          app.use(vite.middlewares);
+          app.listen(PORT, "0.0.0.0", () => {
+            console.log(`Server running on http://0.0.0.0:${PORT} (Vite Dev Mode)`);
+          });
+        }).catch((err) => {
+          console.error("Errore durante l'avvio del server Vite:", err);
+        });
+      }).catch((err) => {
+        console.error("Impossibile importare Vite:", err);
       });
-      app.use(vite.middlewares);
     } else {
       const distPath = path.join(process.cwd(), "dist");
       app.use(express.static(distPath));
       app.get("*", (req, res) => {
         res.sendFile(path.join(distPath, "index.html"));
       });
+      app.listen(PORT, "0.0.0.0", () => {
+        console.log(`Server running on http://0.0.0.0:${PORT} (Production Mode)`);
+      });
     }
   }
-
-  if (!process.env.VERCEL) {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://0.0.0.0:${PORT}`);
-    });
-  }
-}
-
-startServer();
 
 export default app;
