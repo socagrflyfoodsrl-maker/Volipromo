@@ -61,14 +61,20 @@ export default function AdminPanel() {
         setPassword(passToVerify);
         fetchBookings(passToVerify);
       } else {
-        const data = await response.json();
-        setError(data.error || "Password errata.");
+        let errMsg = "Password errata.";
+        try {
+          const data = await response.json();
+          errMsg = data.error || errMsg;
+        } catch (jsonErr) {
+          console.error("Errore di parsing JSON nel login di errore:", jsonErr);
+        }
+        setError(errMsg);
         setIsAuthorized(false);
         sessionStorage.removeItem("dune_admin_password");
       }
-    } catch (err) {
-      setError("Errore di connessione al server.");
-      console.error(err);
+    } catch (err: any) {
+      setError(`Errore di connessione al server: ${err.message || "Impossibile contattare le API"}`);
+      console.error("Errore di connessione al server nell'Area Pilota:", err);
     } finally {
       setLoading(false);
     }
