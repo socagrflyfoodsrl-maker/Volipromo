@@ -31,11 +31,65 @@ export default function AdminPanel() {
   const [error, setError] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"bookings" | "email" | "stats">("bookings");
+  const [activeTab, setActiveTab] = useState<"bookings" | "email" | "stats" | "settings">("bookings");
   
+  // State for password change
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
   // Search and filter inside bookings list
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "confirmed" | "pending_weather">("all");
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (!newPassword.trim()) {
+      setPasswordError("Inserisci la nuova password.");
+      return;
+    }
+    if (newPassword.length < 4) {
+      setPasswordError("La nuova password deve contenere almeno 4 caratteri.");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError("Le password inserite non coincidono.");
+      return;
+    }
+
+    setUpdatingPassword(true);
+    try {
+      const response = await fetch("/api/admin/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": password
+        },
+        body: JSON.stringify({ newPassword: newPassword.trim() })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setPasswordSuccess("Password dell'area pilota aggiornata con successo!");
+        sessionStorage.setItem("dune_admin_password", newPassword.trim());
+        setPassword(newPassword.trim());
+        setNewPassword("");
+        setConfirmNewPassword("");
+      } else {
+        setPasswordError(data.error || "Errore durante l'aggiornamento della password.");
+      }
+    } catch (err) {
+      setPasswordError("Impossibile connettersi al server per modificare la password.");
+      console.error(err);
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
 
   // Load password from sessionStorage to prevent re-login on refresh
   useEffect(() => {
@@ -327,7 +381,15 @@ export default function AdminPanel() {
                 activeTab === "email" ? "bg-sky-600 text-white" : "text-slate-400 hover:text-white"
               }`}
             >
-              <Settings className="w-3.5 h-3.5" /> Email SMTP
+              <Mail className="w-3.5 h-3.5" /> Email SMTP
+            </button>
+            <button
+              onClick={() => setActiveTab("settings")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                activeTab === "settings" ? "bg-sky-600 text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Settings className="w-3.5 h-3.5" /> Password
             </button>
           </div>
 
@@ -573,6 +635,71 @@ export default function AdminPanel() {
             </div>
             
             <EmailAdminPanel />
+          </div>
+        )}
+
+        {/* TAB 4: PASSWORD CHANGE */}
+        {activeTab === "settings" && (
+          <div className="space-y-6 max-w-xl">
+            <div>
+              <h3 className="text-lg font-display font-bold text-slate-800">Modifica Password Area Pilota</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Aggiorna la chiave d'accesso per l'amministrazione e la gestione dei voli.</p>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-4 bg-slate-50 border border-slate-200 p-6 rounded-2xl">
+              {passwordError && (
+                <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-3 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+
+              {passwordSuccess && (
+                <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl p-3 text-xs flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{passwordSuccess}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">
+                  Nuova Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">
+                  Conferma Nuova Password
+                </label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-all font-mono"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={updatingPassword}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {updatingPassword ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Lock className="w-4 h-4" />
+                )}
+                Aggiorna Password
+              </button>
+            </form>
           </div>
         )}
       </div>

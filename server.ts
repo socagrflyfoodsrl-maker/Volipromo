@@ -36,6 +36,40 @@ interface EmailLog {
 }
 
 const BOOKINGS_FILE = path.join(process.cwd(), "bookings.json");
+const ADMIN_CONFIG_FILE = path.join(process.cwd(), "admin_config.json");
+
+interface AdminConfig {
+  password?: string;
+}
+
+function loadAdminConfig(): AdminConfig {
+  try {
+    if (fs.existsSync(ADMIN_CONFIG_FILE)) {
+      const data = fs.readFileSync(ADMIN_CONFIG_FILE, "utf-8");
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error("Errore nel caricamento della configurazione admin:", err);
+  }
+  return {};
+}
+
+const adminConfig: AdminConfig = loadAdminConfig();
+
+function saveAdminConfig() {
+  try {
+    fs.writeFileSync(ADMIN_CONFIG_FILE, JSON.stringify(adminConfig, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Errore nel salvataggio della configurazione admin:", err);
+  }
+}
+
+function getAdminPassword(): string {
+  if (adminConfig.password) {
+    return adminConfig.password;
+  }
+  return cleanEnvVal(process.env.ADMIN_PASSWORD) || "dune2026";
+}
 
 function loadBookings(): Booking[] {
   try {
@@ -321,7 +355,7 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
   // Middleware to authenticate admin requests
   const checkAdminAuth = (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;
-    const adminPass = cleanEnvVal(process.env.ADMIN_PASSWORD) || "dune2026";
+    const adminPass = getAdminPassword();
     if (authHeader === adminPass) {
       return next();
     }
@@ -331,11 +365,22 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
   // API Route: Admin login
   app.post("/api/admin/login", (req, res) => {
     const { password } = req.body;
-    const adminPass = cleanEnvVal(process.env.ADMIN_PASSWORD) || "dune2026";
+    const adminPass = getAdminPassword();
     if (password === adminPass) {
       return res.json({ success: true });
     }
     return res.status(401).json({ success: false, error: "Password errata." });
+  });
+
+  // API Route: Change Admin Password (Admin only)
+  app.post("/api/admin/change-password", checkAdminAuth, (req, res) => {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.trim().length < 4) {
+      return res.status(400).json({ error: "La password deve contenere almeno 4 caratteri." });
+    }
+    adminConfig.password = newPassword.trim();
+    saveAdminConfig();
+    return res.json({ success: true, message: "Password aggiornata con successo!" });
   });
 
   // API Route: Get ALL bookings (Admin only)
