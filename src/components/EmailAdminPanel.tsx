@@ -98,6 +98,12 @@ export function EmailAdminPanel() {
         })
       });
 
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const textMsg = await res.text();
+        throw new Error(textMsg.substring(0, 100) || "Risposta server non valida");
+      }
+
       const data = await res.json();
       if (res.ok && data.success) {
         setTestResult({

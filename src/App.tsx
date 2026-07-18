@@ -123,6 +123,13 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bookingId })
       });
+      
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const textMsg = await res.text();
+        throw new Error(textMsg.substring(0, 100) || "Risposta server non valida");
+      }
+      
       const data = await res.json();
       if (res.ok && data.success) {
         setResendStatus(prev => ({ ...prev, [bookingId]: "Inviata!" }));
@@ -135,9 +142,9 @@ export default function App() {
           setResendStatus(prev => ({ ...prev, [bookingId]: "" }));
         }, 4000);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setResendStatus(prev => ({ ...prev, [bookingId]: "Errore connessione" }));
+      setResendStatus(prev => ({ ...prev, [bookingId]: e.message || "Errore connessione" }));
       setTimeout(() => {
         setResendStatus(prev => ({ ...prev, [bookingId]: "" }));
       }, 4000);
@@ -177,6 +184,11 @@ export default function App() {
       if (searchCode) query.append("code", searchCode.trim());
 
       const res = await fetch(`/api/bookings?${query.toString()}`);
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const textMsg = await res.text();
+        throw new Error(textMsg.substring(0, 100) || "Risposta server non valida");
+      }
       const data = await res.json();
       setSearchResult(data.bookings || []);
     } catch (error) {
