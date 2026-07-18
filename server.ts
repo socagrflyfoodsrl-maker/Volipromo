@@ -5,7 +5,7 @@ import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import nodemailer from "nodemailer";
 
-dotenv.config();
+dotenv.config({ override: true });
 
 interface Booking {
   id: string;
@@ -38,26 +38,54 @@ interface EmailLog {
 const bookings: Booking[] = [];
 const emailLogs: EmailLog[] = [];
 
+// Clean environment values safely
+function cleanEnvVal(val: string | undefined): string {
+  if (!val) return "";
+  return val.trim().replace(/^['"]|['"]$/g, "").trim();
+}
+
 // Helper to check and retrieve SMTP configurations
 function getSmtpConfig() {
+  let host = cleanEnvVal(process.env.SMTP_HOST);
+  if (host) {
+    host = host.replace(/_/g, ".");
+    if (host.toLowerCase().includes("gmail") && !host.toLowerCase().includes("smtp.gmail.com")) {
+      host = "smtp.gmail.com";
+    }
+  }
   return {
-    host: process.env.SMTP_HOST || "",
-    port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
-    user: process.env.SMTP_USER || "",
+    host,
+    port: process.env.SMTP_PORT ? Number(cleanEnvVal(process.env.SMTP_PORT)) : 587,
+    user: cleanEnvVal(process.env.SMTP_USER),
     pass: process.env.SMTP_PASS ? "••••••••" : "", // masked for privacy
-    from: process.env.SMTP_FROM_EMAIL || "",
-    toPilot: process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com",
-    configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+    from: cleanEnvVal(process.env.SMTP_FROM_EMAIL) || "no-reply@duneairpark.it",
+    toPilot: cleanEnvVal(process.env.SMTP_TO_PILOT) || "guarinivolo1964@gmail.com",
+    configured: !!(cleanEnvVal(process.env.SMTP_HOST) && cleanEnvVal(process.env.SMTP_USER) && cleanEnvVal(process.env.SMTP_PASS))
   };
 }
 
 // Helper to send real or simulated emails
 async function sendEmail({ to, subject, text, html }: { to: string; subject: string; text: string; html?: string }) {
-  const host = process.env.SMTP_HOST;
-  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  const from = process.env.SMTP_FROM_EMAIL || "no-reply@duneairpark.it";
+  let host = cleanEnvVal(process.env.SMTP_HOST);
+  if (host) {
+    host = host.replace(/_/g, ".");
+    if (host.toLowerCase().includes("gmail") && !host.toLowerCase().includes("smtp.gmail.com")) {
+      host = "smtp.gmail.com";
+    }
+  }
+  const port = process.env.SMTP_PORT ? Number(cleanEnvVal(process.env.SMTP_PORT)) : 587;
+  const user = cleanEnvVal(process.env.SMTP_USER);
+  const pass = cleanEnvVal(process.env.SMTP_PASS);
+  const from = cleanEnvVal(process.env.SMTP_FROM_EMAIL) || "no-reply@duneairpark.it";
+
+  // Auto-clean space-separated Gmail App Passwords
+  let cleanedPass = pass;
+  if (host && host.toLowerCase().includes("gmail") && cleanedPass.includes(" ")) {
+    const noSpaces = cleanedPass.replace(/\s+/g, "");
+    if (noSpaces.length === 16) {
+      cleanedPass = noSpaces;
+    }
+  }
 
   const logId = "MSG-" + Math.random().toString(36).substring(2, 8).toUpperCase();
   const timestamp = new Date().toISOString();
@@ -70,7 +98,7 @@ async function sendEmail({ to, subject, text, html }: { to: string; subject: str
         secure: port === 465,
         auth: {
           user,
-          pass,
+          pass: cleanedPass,
         },
       });
 
@@ -284,6 +312,9 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
       }
 
       const result = await sendEmail({ to, subject, text: body });
+      if (!result.success) {
+        return res.status(400).json({ success: false, error: result.error, result });
+      }
       return res.json({ success: true, result });
     } catch (error: any) {
       console.error("Errore nell'invio dell'email di test:", error);

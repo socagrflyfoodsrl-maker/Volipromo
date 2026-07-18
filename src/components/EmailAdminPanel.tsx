@@ -274,17 +274,63 @@ export function EmailAdminPanel() {
               </button>
 
               {testResult && (
-                <div className={`p-3 rounded-xl border text-[10.5px] leading-relaxed flex items-start gap-2 ${
-                  testResult.success
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    : "bg-red-50 border-red-200 text-red-800"
-                }`}>
-                  {testResult.success ? (
-                    <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-3">
+                  <div className={`p-3 rounded-xl border text-[10.5px] leading-relaxed flex items-start gap-2 ${
+                    testResult.success
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                      : "bg-red-50 border-red-200 text-red-800"
+                  }`}>
+                    {testResult.success ? (
+                      <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                    )}
+                    <span className="break-all">{testResult.message}</span>
+                  </div>
+
+                  {(!testResult.success && (
+                    testResult.message.includes("535") || 
+                    testResult.message.toLowerCase().includes("username and password not accepted") || 
+                    testResult.message.toLowerCase().includes("invalid login") ||
+                    testResult.message.toLowerCase().includes("credentials") ||
+                    (config?.user && config.user.toLowerCase().includes("gmail.com"))
+                  )) && (
+                    <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl text-xs text-sky-900 space-y-2">
+                      <div className="font-extrabold flex items-center gap-1.5 text-sky-950">
+                        <Settings className="w-4 h-4 text-sky-600 animate-spin-slow" />
+                        <span>⚠️ GUIDA: Come risolvere l'errore Gmail (Codice 535)</span>
+                      </div>
+                      <p className="text-[11px] text-sky-850 leading-normal">
+                        Se usi un indirizzo Gmail, Google richiede una <strong>Password dell'App</strong> specifica (un codice di 16 lettere) invece della tua password di accesso normale:
+                      </p>
+                      <ol className="list-decimal pl-4 space-y-1.5 text-[11px] text-sky-850 font-medium">
+                        <li>
+                          Accedi al tuo account Google su <a href="https://myaccount.google.com/" target="_blank" rel="noreferrer" className="underline font-bold text-sky-700 hover:text-sky-900">myaccount.google.com</a>
+                        </li>
+                        <li>
+                          Vai su <strong>Sicurezza</strong> (nel menu di sinistra/alto)
+                        </li>
+                        <li>
+                          Assicurati che la <strong>Verifica in 2 passaggi</strong> sia attiva per l'account
+                        </li>
+                        <li>
+                          Nella barra di ricerca in alto, digita <strong>"Password dell'app"</strong> e seleziona il risultato
+                        </li>
+                        <li>
+                          Scegli un nome a tua scelta (es: <code>Duneairpark</code>) e clicca su <strong>Crea</strong>
+                        </li>
+                        <li>
+                          Verrà mostrato un codice giallo di <strong>16 lettere</strong>. Copialo!
+                        </li>
+                        <li>
+                          Inserisci questo codice di 16 lettere (senza spazi) come valore della variabile <strong>SMTP_PASS</strong> nella sezione configurazione.
+                        </li>
+                      </ol>
+                      <p className="text-[10px] text-sky-700 font-semibold italic">
+                        Nota: L'app rimuoverà automaticamente gli spazi se inserisci il codice copiato direttamente con gli spazi.
+                      </p>
+                    </div>
                   )}
-                  <span>{testResult.message}</span>
                 </div>
               )}
             </form>
