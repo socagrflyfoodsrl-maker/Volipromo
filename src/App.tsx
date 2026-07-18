@@ -5,6 +5,7 @@ import InteractiveMap from "./components/InteractiveMap";
 import BookingForm from "./components/BookingForm";
 import PilotChat from "./components/PilotChat";
 import PhotoGallery from "./components/PhotoGallery";
+import { EmailAdminPanel } from "./components/EmailAdminPanel";
 import {
   Plane,
   MapPin,
@@ -23,7 +24,8 @@ import {
   Navigation,
   FileText,
   Video,
-  RefreshCw
+  RefreshCw,
+  Send
 } from "lucide-react";
 
 // Use direct path string to prevent strict TypeScript JPG compilation errors
@@ -108,6 +110,41 @@ export default function App() {
   const [searchResult, setSearchResult] = useState<Booking[] | null>(null);
   const [searchAttempted, setSearchAttempted] = useState<boolean>(false);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
+
+  // Resend email notification state
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [resendStatus, setResendStatus] = useState<{[key: string]: string}>({});
+
+  const handleResendEmail = async (bookingId: string) => {
+    setResendingId(bookingId);
+    try {
+      const res = await fetch("/api/email/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setResendStatus(prev => ({ ...prev, [bookingId]: "Inviata!" }));
+        setTimeout(() => {
+          setResendStatus(prev => ({ ...prev, [bookingId]: "" }));
+        }, 3000);
+      } else {
+        setResendStatus(prev => ({ ...prev, [bookingId]: data.error || "Errore" }));
+        setTimeout(() => {
+          setResendStatus(prev => ({ ...prev, [bookingId]: "" }));
+        }, 4000);
+      }
+    } catch (e) {
+      console.error(e);
+      setResendStatus(prev => ({ ...prev, [bookingId]: "Errore connessione" }));
+      setTimeout(() => {
+        setResendStatus(prev => ({ ...prev, [bookingId]: "" }));
+      }, 4000);
+    } finally {
+      setResendingId(null);
+    }
+  };
 
   // Load bookings from localStorage on mount (for persistent feedback in client)
   useEffect(() => {
@@ -197,6 +234,9 @@ export default function App() {
             </a>
             <a href="#cerca" className="hover:text-slate-800 transition-colors py-7 border-b-2 border-transparent hover:border-sky-600">
               Cerca Volo
+            </a>
+            <a href="#email-admin" className="hover:text-slate-800 transition-colors py-7 border-b-2 border-transparent hover:border-sky-600">
+              Configurazione Email
             </a>
             <a href="#pilota" className="hover:text-slate-800 transition-colors py-7 border-b-2 border-transparent hover:border-sky-600">
               Chiedi al Pilota AI
@@ -536,13 +576,34 @@ export default function App() {
                           <span className="text-[10px] text-slate-400 leading-relaxed max-w-xs">
                             Notifiche email automatiche già trasmesse. Contatto Pilota: <strong>guarinivolo1964@gmail.com</strong>.
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => window.print()}
-                            className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 hover:bg-slate-50"
-                          >
-                            <FileText className="w-3 h-3" /> Stampa Biglietto
-                          </button>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              disabled={resendingId === b.id}
+                              onClick={() => handleResendEmail(b.id)}
+                              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
+                                resendStatus[b.id]
+                                  ? resendStatus[b.id].includes("Errore")
+                                    ? "bg-red-50 text-red-700 border border-red-200"
+                                    : "bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse"
+                                  : "bg-sky-50 border border-sky-100 text-sky-700 hover:bg-sky-100 cursor-pointer"
+                              }`}
+                            >
+                              {resendingId === b.id ? (
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Send className="w-3 h-3" />
+                              )}
+                              {resendStatus[b.id] || "Rinvia Email"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => window.print()}
+                              className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 hover:bg-slate-50 cursor-pointer"
+                            >
+                              <FileText className="w-3 h-3" /> Stampa Biglietto
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -552,6 +613,11 @@ export default function App() {
             )}
           </AnimatePresence>
         </div>
+      </section>
+
+      {/* 6.5 Email Configuration and Management Panel */}
+      <section className="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <EmailAdminPanel />
       </section>
 
       {/* 7. Detailed Section about Campo di Volo & Pilot Info */}

@@ -3,6 +3,7 @@ import path from "path";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { createServer as createViteServer } from "vite";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
@@ -22,8 +23,120 @@ interface Booking {
   createdAt: string;
 }
 
-// In-memory store for bookings in this container session
+interface EmailLog {
+  id: string;
+  to: string;
+  subject: string;
+  body: string;
+  timestamp: string;
+  simulated: boolean;
+  success: boolean;
+  error?: string;
+}
+
+// In-memory store for bookings and email logs in this container session
 const bookings: Booking[] = [];
+const emailLogs: EmailLog[] = [];
+
+// Helper to check and retrieve SMTP configurations
+function getSmtpConfig() {
+  return {
+    host: process.env.SMTP_HOST || "",
+    port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587,
+    user: process.env.SMTP_USER || "",
+    pass: process.env.SMTP_PASS ? "••••••••" : "", // masked for privacy
+    from: process.env.SMTP_FROM_EMAIL || "",
+    toPilot: process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com",
+    configured: !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)
+  };
+}
+
+// Helper to send real or simulated emails
+async function sendEmail({ to, subject, text, html }: { to: string; subject: string; text: string; html?: string }) {
+  const host = process.env.SMTP_HOST;
+  const port = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 587;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  const from = process.env.SMTP_FROM_EMAIL || "no-reply@duneairpark.it";
+
+  const logId = "MSG-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+  const timestamp = new Date().toISOString();
+
+  if (host && user && pass) {
+    try {
+      const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: {
+          user,
+          pass,
+        },
+      });
+
+      // Simple HTML wrap to make emails look elegant
+      const formattedHtml = html || `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px; background-color: #ffffff;">
+          <div style="background-color: #0ea5e9; color: #ffffff; padding: 15px; border-radius: 8px 8px 0 0; text-align: center;">
+            <h2 style="margin: 0; font-size: 20px;">Duneairpark Flight Center</h2>
+          </div>
+          <div style="padding: 20px; color: #334155; line-height: 1.6;">
+            ${text.replace(/\n/g, "<br>")}
+          </div>
+          <div style="text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 15px; margin-top: 20px;">
+            Duneairpark • Fasano-Ostuni, Savelletri, Puglia • Volo Ultraleggero
+          </div>
+        </div>
+      `;
+
+      await transporter.sendMail({
+        from: `"Duneairpark" <${from}>`,
+        to,
+        subject,
+        text,
+        html: formattedHtml,
+      });
+
+      emailLogs.unshift({
+        id: logId,
+        to,
+        subject,
+        body: text,
+        timestamp,
+        simulated: false,
+        success: true,
+      });
+
+      return { success: true, simulated: false, logId };
+    } catch (err: any) {
+      console.error("Nodemailer error:", err);
+      emailLogs.unshift({
+        id: logId,
+        to,
+        subject,
+        body: text,
+        timestamp,
+        simulated: false,
+        success: false,
+        error: err.message || "Unknown SMTP Error",
+      });
+      return { success: false, simulated: false, error: err.message, logId };
+    }
+  } else {
+    // Simulated dispatch (console only)
+    console.log(`\n=== SIMULATED EMAIL TO ${to} ===\nSubject: ${subject}\n\n${text}\n=================================\n`);
+    emailLogs.unshift({
+      id: logId,
+      to,
+      subject,
+      body: text,
+      timestamp,
+      simulated: true,
+      success: true,
+    });
+    return { success: true, simulated: true, logId };
+  }
+}
 
 // Initialize Gemini client on the server according to the gemini-api skill rules
 const ai = new GoogleGenAI({
@@ -42,7 +155,7 @@ async function startServer() {
   app.use(express.json());
 
   // API Route: Create Booking & Simulate Payment + Email Notifications
-  app.post("/api/book", (req, res) => {
+  app.post("/api/book", async (req, res) => {
     try {
       const { name, email, phone, weight, date, timeSlot, experienceId, experienceName, price, paymentMethod } = req.body;
 
@@ -70,14 +183,7 @@ async function startServer() {
 
       bookings.push(newBooking);
 
-      // Simulation of email dispatch as requested by the user:
-      // "le prenotazioni saranno inviate via emal e confermate tramite una notifica automatizzata subito dopo il pagamento. indirizzo email guarinivolo1964@gmail.com"
-      const emailContentToPilot = `
-============================================================
-NURSERY/TAKEOFF LOG: EMAIL TO MAIN PILOT (guarinivolo1964@gmail.com)
-Subject: [Duneairpark] NUOVA PRENOTAZIONE CONFERMATA - ${bookingId}
-------------------------------------------------------------
-Ciao Pilota Guarini,
+      const emailTextToPilot = `Ciao Pilota Guarini,
 Hai ricevuto una nuova prenotazione per un volo promozionale in ultraleggero!
 
 Dettagli Passeggero:
@@ -93,16 +199,9 @@ Dettagli Volo:
 - Importo da saldare in loco: €${price} (Metodo preferito: ${paymentMethod})
 
 La prenotazione è stata CONFERMATA. Il pagamento avverrà direttamente al campo di volo (POS o contanti).
-Si prega di monitorare il meteo per il giorno selezionato.
-============================================================
-`;
+Si prega di monitorare il meteo per il giorno selezionato.`;
 
-      const emailContentToCustomer = `
-============================================================
-CUSTOMER NOTIFICATION LOG: EMAIL TO CUSTOMER (${email})
-Subject: [Duneairpark] Conferma Prenotazione Volo Ultraleggero - ${bookingId}
-------------------------------------------------------------
-Gentile ${name},
+      const emailTextToCustomer = `Gentile ${name},
 Ti confermiamo la prenotazione del tuo volo promozionale in ultraleggero!
 Il pagamento dell'esperienza avverrà direttamente al campo di volo il giorno dell'esperienza (tramite POS/Carta o in contanti). Non è richiesto alcun pagamento anticipato online.
 
@@ -121,20 +220,27 @@ NOTIFICA DI SICUREZZA & METEO:
 I voli in ultraleggero sono strettamente legati alle condizioni meteo (vento e visibilità). 
 In caso di meteo non idoneo, verrai contattato direttamente per riprogrammare il volo senza alcun costo aggiuntivo.
 
-Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.
-============================================================
-`;
+Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
 
-      console.log(emailContentToPilot);
-      console.log(emailContentToCustomer);
+      const pilotMailResult = await sendEmail({
+        to: process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com",
+        subject: `[Duneairpark] NUOVA PRENOTAZIONE CONFERMATA - ${bookingId}`,
+        text: emailTextToPilot
+      });
+
+      const customerMailResult = await sendEmail({
+        to: email,
+        subject: `[Duneairpark] Conferma Prenotazione Volo Ultraleggero - ${bookingId}`,
+        text: emailTextToCustomer
+      });
 
       return res.status(201).json({
         success: true,
         message: "Prenotazione salvata e notifiche inviate con successo.",
         booking: newBooking,
         notificationSent: {
-          pilot: "guarinivolo1964@gmail.com",
-          customer: email,
+          pilot: { address: "guarinivolo1964@gmail.com", ...pilotMailResult },
+          customer: { address: email, ...customerMailResult }
         }
       });
     } catch (error: any) {
@@ -157,6 +263,103 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.
     });
 
     return res.json({ bookings: filtered });
+  });
+
+  // API Route: Get Email Config status
+  app.get("/api/email/config", (req, res) => {
+    return res.json({ config: getSmtpConfig() });
+  });
+
+  // API Route: Get recent email logs
+  app.get("/api/email/logs", (req, res) => {
+    return res.json({ logs: emailLogs });
+  });
+
+  // API Route: Send a test email to verify SMTP
+  app.post("/api/email/test", async (req, res) => {
+    try {
+      const { to, subject, body } = req.body;
+      if (!to || !subject || !body) {
+        return res.status(400).json({ error: "I campi 'to', 'subject' e 'body' sono obbligatori." });
+      }
+
+      const result = await sendEmail({ to, subject, text: body });
+      return res.json({ success: true, result });
+    } catch (error: any) {
+      console.error("Errore nell'invio dell'email di test:", error);
+      return res.status(500).json({ error: error.message || "Errore sconosciuto." });
+    }
+  });
+
+  // API Route: Resend booking confirmation email
+  app.post("/api/email/resend", async (req, res) => {
+    try {
+      const { bookingId } = req.body;
+      if (!bookingId) {
+        return res.status(400).json({ error: "Il campo 'bookingId' è obbligatorio." });
+      }
+
+      const booking = bookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
+      if (!booking) {
+        return res.status(404).json({ error: "Prenotazione non trovata." });
+      }
+
+      const emailTextToPilot = `Ciao Pilota Guarini,
+Hai richiesto il rinvio dei dettagli per la prenotazione ${booking.id}!
+
+Dettagli Passeggero:
+- Nome: ${booking.name}
+- Email: ${booking.email}
+- Telefono: ${booking.phone}
+- Peso: ${booking.weight} kg
+
+Dettagli Volo:
+- Esperienza: ${booking.experienceName} (${booking.experienceId})
+- Data: ${booking.date}
+- Fascia Oraria: ${booking.timeSlot}
+- Importo da saldare in loco: €${booking.price} (Metodo preferito: ${booking.paymentMethod})
+
+La prenotazione è stata CONFERMATA. Il pagamento avverrà direttamente al campo di volo (POS o contanti).`;
+
+      const emailTextToCustomer = `Gentile ${booking.name},
+Ti inviamo nuovamente la conferma di prenotazione del tuo volo promozionale in ultraleggero.
+Il pagamento avverrà direttamente al campo di volo il giorno dell'esperienza (tramite POS/Carta o in contanti).
+
+Ecco il tuo riepilogo:
+- Codice Prenotazione: ${booking.id}
+- Esperienza: ${booking.experienceName}
+- Decollo da: Campo di Volo Duneairpark (zona Fasano-Ostuni)
+- Data: ${booking.date}
+- Fascia Oraria: ${booking.timeSlot}
+- Peso inserito: ${booking.weight} kg
+- Importo da saldare in loco: €${booking.price} (Metodo preferito: ${booking.paymentMethod})
+
+Pilota di riferimento: Istruttore Guarini (guarinivolo1964@gmail.com)
+
+Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
+
+      const pilotResult = await sendEmail({
+        to: process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com",
+        subject: `[Duneairpark] RINVIO PRENOTAZIONE - ${booking.id}`,
+        text: emailTextToPilot
+      });
+
+      const customerResult = await sendEmail({
+        to: booking.email,
+        subject: `[Duneairpark] Copia Conferma Prenotazione - ${booking.id}`,
+        text: emailTextToCustomer
+      });
+
+      return res.json({
+        success: true,
+        message: "Email di conferma reinviate con successo.",
+        pilot: pilotResult,
+        customer: customerResult
+      });
+    } catch (error: any) {
+      console.error("Errore nel rinvio dell'email:", error);
+      return res.status(500).json({ error: "Impossibile reinviare le email." });
+    }
   });
 
   // API Route: AI Virtual Pilot assistant using @google/genai SDK (Gemini 3.5 Flash)
