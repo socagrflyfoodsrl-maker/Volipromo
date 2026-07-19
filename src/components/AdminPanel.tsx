@@ -351,7 +351,7 @@ export default function AdminPanel() {
             A
           </div>
           <div>
-            <span className="text-[9px] uppercase font-bold tracking-widest text-sky-400">Pannello Pilota Guarini</span>
+            <span className="text-[9px] uppercase font-bold tracking-widest text-sky-400">Pannello Pilota</span>
             <h2 className="text-xl font-display font-black tracking-tight leading-none mt-1">DuneAirPark Admin</h2>
           </div>
         </div>
@@ -620,7 +620,7 @@ export default function AdminPanel() {
             <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-4">
               <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wide">Informativa Bilanciamento Carichi</h4>
               <p className="text-xs text-slate-650 leading-relaxed">
-                Durante la pianificazione estiva del DuneAirPark, l'istruttore Guarini verifica che il peso medio di decollo non superi i limiti della cellula del velivolo ultraleggero. Il peso medio registrato per questa stagione è attualmente pari a <strong>{stats.avgWeight} kg</strong> per passeggero. Ciò consente una riserva di carburante ottimale per tratte a medio raggio come Alberobello e la costa adriatica.
+                Durante la pianificazione estiva del DuneAirPark, il pilota istruttore verifica che il peso medio di decollo non superi i limiti della cellula del velivolo ultraleggero. Il peso medio registrato per questa stagione è attualmente pari a <strong>{stats.avgWeight} kg</strong> per passeggero. Ciò consente una riserva di carburante ottimale per tratte a medio raggio come Alberobello e la costa adriatica.
               </p>
             </div>
           </div>

@@ -33,6 +33,9 @@ export default function BookingForm({
   // Payment state - Payment is on-field (POS or cash)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("POS o Carta di Credito (al campo)");
 
+  // Pilot / Instructor selection state
+  const [selectedInstructor, setSelectedInstructor] = useState<string>("Pilota");
+
   // Completed booking placeholder
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null);
 
@@ -90,7 +93,8 @@ export default function BookingForm({
 
       // Stage 2: Save Booking and Trigger Notifications
       setTimeout(async () => {
-        setLoadingMessage("Generazione notifica automatizzata per il pilota (guarinivolo1964@gmail.com)...");
+        const targetEmail = selectedInstructor === "Istruttore Rocco Gallone" ? "roccogallonevolo@gmail.com" : "guarinivolo1964@gmail.com";
+        setLoadingMessage(`Generazione notifica automatizzata per il pilota (${targetEmail})...`);
 
         try {
           const response = await fetch("/api/book", {
@@ -107,6 +111,7 @@ export default function BookingForm({
               experienceName: selectedPackage.name,
               price: selectedPackage.price,
               paymentMethod: selectedPaymentMethod,
+              instructor: selectedInstructor,
             }),
           });
 
@@ -143,6 +148,7 @@ export default function BookingForm({
             paymentMethod: selectedPaymentMethod,
             status: "confirmed",
             createdAt: new Date().toISOString(),
+            instructor: selectedInstructor,
           };
           setCompletedBooking(fallback);
           onBookingComplete(fallback);
@@ -164,6 +170,7 @@ export default function BookingForm({
     setSelectedSlot("");
     setSelectedPaymentMethod("POS o Carta di Credito (al campo)");
     setCompletedBooking(null);
+    setSelectedInstructor("Pilota");
     setStep(1);
   };
 
@@ -252,6 +259,57 @@ export default function BookingForm({
                     </button>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-250 flex items-start gap-3">
+              <span className="text-2xl mt-0.5">👨‍✈️</span>
+              <div className="w-full">
+                <h4 className="text-sm font-bold text-slate-800">Seleziona l'Istruttore di Volo:</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedInstructor("Pilota")}
+                    className={`p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 w-full ${
+                      selectedInstructor === "Pilota"
+                        ? "bg-sky-600 text-white border-sky-600 shadow-md"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xl shrink-0 border border-slate-200">
+                      👴
+                    </div>
+                    <div>
+                      <div className="font-black text-xs">Pilota</div>
+                      <div className={`text-[10px] mt-0.5 ${selectedInstructor === "Pilota" ? "text-sky-200" : "text-slate-400"}`}>
+                        Capo Pilota • Voli Costieri & Sicurezza
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedInstructor("Istruttore Rocco Gallone")}
+                    className={`p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 w-full ${
+                      selectedInstructor === "Istruttore Rocco Gallone"
+                        ? "bg-sky-600 text-white border-sky-600 shadow-md"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xl shrink-0 border border-slate-200">
+                      🛩️
+                    </div>
+                    <div>
+                      <div className="font-black text-xs">Istruttore Rocco Gallone</div>
+                      <div className={`text-[10px] mt-0.5 ${selectedInstructor === "Istruttore Rocco Gallone" ? "text-sky-200" : "text-slate-400"}`}>
+                        Secondo Pilota • Trulli & Valle d'Itria
+                      </div>
+                    </div>
+                  </button>
+                </div>
+                <p className="text-[10.5px] text-slate-550 mt-3 italic flex items-center gap-1.5">
+                  ⚠️ <span><strong>Nota:</strong> il pilota vi verrà assegnato in base alla disponibilità.</span>
+                </p>
               </div>
             </div>
 
@@ -352,7 +410,7 @@ export default function BookingForm({
                       </motion.div>
                     ) : (
                       <div className="text-slate-400 text-xs leading-relaxed">
-                        L'ultraleggero è un velivolo leggero biposto (pilota + passeggero). È fondamentale indicare il peso reale del passeggero prima del volo per consentire al Pilota Guarini di calcolare l'assetto ideale e il consumo di carburante.
+                        L'ultraleggero è un velivolo leggero biposto (pilota + passeggero). È fondamentale indicare il peso reale del passeggero prima del volo per consentire al Pilota di calcolare l'assetto ideale e il consumo di carburante.
                       </div>
                     )}
                   </AnimatePresence>
@@ -679,10 +737,14 @@ export default function BookingForm({
               </div>
 
               <div className="p-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4 border-b border-slate-200 pb-3">
+                <div className="grid grid-cols-3 gap-3 border-b border-slate-200 pb-3">
                   <div>
                     <span className="text-[8px] text-slate-400 uppercase block">PASSEGGERO</span>
-                    <span className="text-xs font-bold text-slate-800">{completedBooking.name}</span>
+                    <span className="text-xs font-bold text-slate-800 truncate block">{completedBooking.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[8px] text-slate-400 uppercase block">ISTRUTTORE</span>
+                    <span className="text-xs font-bold text-sky-700 truncate block">{completedBooking.instructor || "Pilota"}</span>
                   </div>
                   <div>
                     <span className="text-[8px] text-slate-400 uppercase block">CONTATTO</span>
@@ -718,7 +780,7 @@ export default function BookingForm({
               </div>
 
               <div className="bg-sky-50 border-t border-sky-100 p-3 text-center text-[10px] text-sky-900 leading-relaxed font-medium">
-                📍 Ritrovo: Campo di volo Duneairpark, Savelletri (BR) • Consigliamo di arrivare 15 min prima.
+                📍 Ritrovo: Campo di volo Duneairpark, Torre Canne - Ostuni • Consigliamo di arrivare 15 min prima.
               </div>
             </div>
 
@@ -732,7 +794,7 @@ export default function BookingForm({
                 </div>
                 <div className="flex items-center gap-2 font-medium">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>Email di notifica inviata al Pilota Guarini: <strong className="text-sky-600">guarinivolo1964@gmail.com</strong></span>
+                  <span>Email di notifica inviata al Pilota ({completedBooking.instructor || "Pilota"}): <strong className="text-sky-600">{(completedBooking.instructor === "Istruttore Rocco Gallone") ? "roccogallonevolo@gmail.com" : "guarinivolo1964@gmail.com"}</strong></span>
                 </div>
                 <div className="flex items-center gap-2 font-medium">
                   <span className="text-emerald-500 font-bold">✓</span>
@@ -740,7 +802,7 @@ export default function BookingForm({
                 </div>
               </div>
               <p className="text-[10.5px] text-slate-500 pt-1 leading-relaxed border-t border-slate-250">
-                <strong>Nota di volo:</strong> Poiché i voli in ultraleggero sono legati a vento e visibilità, l'istruttore Guarini ti contatterà via telefono o email 24 ore prima per confermare l'idoneità meteo o concordare un eventuale orario alternativo.
+                <strong>Nota di volo:</strong> Poiché i voli in ultraleggero sono legati a vento e visibilità, {completedBooking.instructor && completedBooking.instructor.includes("Rocco") ? "l'istruttore Rocco Gallone" : "il pilota"} ti contatterà via telefono o email 24 ore prima per confermare l'idoneità meteo o concordare un eventuale orario alternativo.
               </p>
             </div>
 

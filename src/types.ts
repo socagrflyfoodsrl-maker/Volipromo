@@ -24,6 +24,7 @@ export interface Booking {
   paymentMethod: string;
   status: "confirmed" | "pending_weather";
   createdAt: string;
+  instructor?: string;
 }
 
 export interface ChatMessage {

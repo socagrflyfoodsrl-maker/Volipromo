@@ -8,7 +8,7 @@ export default function PilotChat() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Ciao! Sono l'Istruttore Guarini, il tuo pilota virtuale qui a Duneairpark. 🛩️\n\nHai domande sul volo in ultraleggero tra Fasano e Ostuni? Chiedimi pure informazioni sul meteo, sulla sicurezza, sulle nostre rotte o su come prepararti per il decollo!",
+      content: "Ciao! Sono il tuo Pilota virtuale qui a Duneairpark. 🛩️\n\nHai domande sul volo in ultraleggero tra Fasano e Ostuni? Chiedimi pure informazioni sul meteo, sulla sicurezza, sulle nostre rotte o su come prepararti per il decollo!",
       timestamp: new Date(),
     },
   ]);
@@ -116,7 +116,7 @@ export default function PilotChat() {
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h3 className="text-sm font-bold font-display text-white">Pilota AI Guarini</h3>
+              <h3 className="text-sm font-bold font-display text-white">Pilota AI</h3>
               <Sparkles className="w-3.5 h-3.5 text-sky-400" />
             </div>
             <span className="text-[10px] text-slate-400">Assistente virtuale Duneairpark</span>
@@ -213,7 +213,7 @@ export default function PilotChat() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Chiedi informazioni all'Istruttore Guarini..."
+          placeholder="Chiedi informazioni al Pilota..."
           className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
         />
         <button

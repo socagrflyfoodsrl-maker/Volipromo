@@ -22,6 +22,7 @@ interface Booking {
   paymentMethod: string;
   status: "confirmed" | "pending_weather";
   createdAt: string;
+  instructor?: string;
 }
 
 interface EmailLog {
@@ -125,6 +126,10 @@ async function ensureTablesExist() {
         created_at VARCHAR(100) NOT NULL
       );
     `;
+    // Add instructor column if it doesn't exist
+    await sql`
+      ALTER TABLE bookings ADD COLUMN IF NOT EXISTS instructor VARCHAR(100) DEFAULT 'Pilota';
+    `;
     tablesCreated = true;
     console.log("Postgres tables checked/created successfully.");
   } catch (err) {
@@ -178,6 +183,7 @@ async function getBookingsAsync(): Promise<Booking[]> {
         paymentMethod: row.payment_method,
         status: row.status as "confirmed" | "pending_weather",
         createdAt: row.created_at,
+        instructor: row.instructor || "Pilota",
       }));
     } catch (err) {
       console.error("Errore nel caricamento delle prenotazioni da Postgres:", err);
@@ -201,7 +207,7 @@ async function saveBookingAsync(booking: Booking): Promise<boolean> {
       await ensureTablesExist();
       await sql`
         INSERT INTO bookings (
-          id, name, email, phone, weight, date, time_slot, experience_id, experience_name, price, payment_method, status, created_at
+          id, name, email, phone, weight, date, time_slot, experience_id, experience_name, price, payment_method, status, created_at, instructor
         ) VALUES (
           ${booking.id},
           ${booking.name},
@@ -215,7 +221,8 @@ async function saveBookingAsync(booking: Booking): Promise<boolean> {
           ${booking.price},
           ${booking.paymentMethod},
           ${booking.status},
-          ${booking.createdAt}
+          ${booking.createdAt},
+          ${booking.instructor || "Pilota"}
         ) ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           email = EXCLUDED.email,
@@ -228,7 +235,8 @@ async function saveBookingAsync(booking: Booking): Promise<boolean> {
           price = EXCLUDED.price,
           payment_method = EXCLUDED.payment_method,
           status = EXCLUDED.status,
-          created_at = EXCLUDED.created_at;
+          created_at = EXCLUDED.created_at,
+          instructor = EXCLUDED.instructor;
       `;
       return true;
     } catch (err) {
@@ -436,11 +444,16 @@ app.use(express.json());
   // API Route: Create Booking & Simulate Payment + Email Notifications
   app.post("/api/book", async (req, res) => {
     try {
-      const { name, email, phone, weight, date, timeSlot, experienceId, experienceName, price, paymentMethod } = req.body;
+      const { name, email, phone, weight, date, timeSlot, experienceId, experienceName, price, paymentMethod, instructor } = req.body;
 
       if (!name || !email || !phone || !weight || !date || !timeSlot || !experienceId) {
         return res.status(400).json({ error: "Tutti i campi obbligatori devono essere compilati." });
       }
+
+      const selectedInstructor = instructor || "Pilota";
+      const isRocco = selectedInstructor.includes("Rocco") || selectedInstructor.includes("Gallone");
+      const pilotEmail = isRocco ? "roccogallonevolo@gmail.com" : (process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com");
+      const pilotName = isRocco ? "Istruttore Rocco Gallone" : "Pilota";
 
       const bookingId = "DUNE-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -458,12 +471,13 @@ app.use(express.json());
         paymentMethod: paymentMethod || "Carta di Credito",
         status: "confirmed",
         createdAt: new Date().toISOString(),
+        instructor: selectedInstructor,
       };
 
       await saveBookingAsync(newBooking);
 
 
-      const emailTextToPilot = `Ciao Pilota Guarini,
+      const emailTextToPilot = `Ciao ${pilotName},
 Hai ricevuto una nuova prenotazione per un volo promozionale in ultraleggero!
 
 Dettagli Passeggero:
@@ -477,6 +491,7 @@ Dettagli Volo:
 - Data: ${date}
 - Fascia Oraria: ${timeSlot}
 - Importo da saldare in loco: €${price} (Metodo preferito: ${paymentMethod})
+- Istruttore designato: ${selectedInstructor}
 
 La prenotazione è stata CONFERMATA. Il pagamento avverrà direttamente al campo di volo (POS o contanti).
 Si prega di monitorare il meteo per il giorno selezionato.`;
@@ -494,7 +509,7 @@ Ecco il tuo riepilogo:
 - Peso inserito: ${weight} kg
 - Importo da saldare in loco: €${price} (Metodo preferito: ${paymentMethod})
 
-Pilota di riferimento: Istruttore Guarini (guarinivolo1964@gmail.com)
+Pilota di riferimento: ${selectedInstructor} (${pilotEmail})
 
 NOTIFICA DI SICUREZZA & METEO:
 I voli in ultraleggero sono strettamente legati alle condizioni meteo (vento e visibilità). 
@@ -503,7 +518,7 @@ In caso di meteo non idoneo, verrai contattato direttamente per riprogrammare il
 Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
 
       const pilotMailResult = await sendEmail({
-        to: process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com",
+        to: pilotEmail,
         subject: `[Duneairpark] NUOVA PRENOTAZIONE CONFERMATA - ${bookingId}`,
         text: emailTextToPilot
       });
@@ -519,7 +534,7 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
         message: "Prenotazione salvata e notifiche inviate con successo.",
         booking: newBooking,
         notificationSent: {
-          pilot: { address: "guarinivolo1964@gmail.com", ...pilotMailResult },
+          pilot: { address: pilotEmail, ...pilotMailResult },
           customer: { address: email, ...customerMailResult }
         }
       });
@@ -684,7 +699,12 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
         return res.status(404).json({ error: "Prenotazione non trovata." });
       }
 
-      const emailTextToPilot = `Ciao Pilota Guarini,
+      const selectedInstructor = booking.instructor || "Pilota";
+      const isRocco = selectedInstructor.includes("Rocco") || selectedInstructor.includes("Gallone");
+      const pilotEmail = isRocco ? "roccogallonevolo@gmail.com" : (process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com");
+      const pilotName = isRocco ? "Istruttore Rocco Gallone" : "Pilota";
+
+      const emailTextToPilot = `Ciao ${pilotName},
 Hai richiesto il rinvio dei dettagli per la prenotazione ${booking.id}!
 
 Dettagli Passeggero:
@@ -698,6 +718,7 @@ Dettagli Volo:
 - Data: ${booking.date}
 - Fascia Oraria: ${booking.timeSlot}
 - Importo da saldare in loco: €${booking.price} (Metodo preferito: ${booking.paymentMethod})
+- Istruttore designato: ${selectedInstructor}
 
 La prenotazione è stata CONFERMATA. Il pagamento avverrà direttamente al campo di volo (POS o contanti).`;
 
@@ -714,12 +735,12 @@ Ecco il tuo riepilogo:
 - Peso inserito: ${booking.weight} kg
 - Importo da saldare in loco: €${booking.price} (Metodo preferito: ${booking.paymentMethod})
 
-Pilota di riferimento: Istruttore Guarini (guarinivolo1964@gmail.com)
+Pilota di riferimento: ${selectedInstructor} (${pilotEmail})
 
 Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
 
       const pilotResult = await sendEmail({
-        to: process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com",
+        to: pilotEmail,
         subject: `[Duneairpark] RINVIO PRENOTAZIONE - ${booking.id}`,
         text: emailTextToPilot
       });
@@ -751,16 +772,18 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
       }
 
       // Convert input chat messages to the format expected by Gemini
-      // System instructions guide the persona of Pilot Guarini
+      // System instructions guide the persona of the Virtual Pilot
       const systemInstruction = `
-Sei il "Pilota Virtuale Guarini", assistente AI del Campo di Volo Duneairpark, situato nella splendida zona costiera tra Fasano e Ostuni, in Puglia (vicino Savelletri).
+Sei il "Pilota Virtuale", assistente AI del Campo di Volo Duneairpark, situato nella splendida zona costiera tra Fasano e Ostuni, in Puglia (vicino Savelletri).
 Il tuo indirizzo email di contatto principale è guarinivolo1964@gmail.com.
 
 Il tuo stile di comunicazione è estremamente accogliente, cordiale, caloroso e professionale. Parli in italiano con un pizzico di entusiasmo pugliese per il volo, il mare azzurro, gli ulivi secolari e le città bianche come Ostuni viste dall'alto. Metti sempre al primo posto la sicurezza del volo!
 
 Informazioni Chiave per rispondere:
 1. CAMPO DI VOLO DUNEAIRPARK: Si trova sulla costa tra Fasano e Ostuni. Offre una pista in erba ben curata, ideale per decolli e atterraggi panoramici a due passi dal mare Adriatico e dai resti archeologici di Egnazia.
-2. PILOTA GUARINI: Pilota esperto e istruttore certificato con migliaia di ore di volo, ama condividere la passione per il volo in ultraleggero in totale sicurezza.
+2. I NOSTRI PILOTI ISTRUTTORI:
+   - Pilota: Capo pilota ed esperto istruttore certificato con migliaia di ore di volo, fondatore di Duneairpark. Specializzato in voli panoramici costieri e sicurezza operativa. Email: guarinivolo1964@gmail.com
+   - Istruttore Rocco Gallone: Secondo pilota istruttore certificato di grande esperienza, esperto in ultraleggeri e volo sportivo. Appassionato di navigazione aerea sopra la Valle d'Itria e i Trulli. Email: roccogallonevolo@gmail.com
 3. VOLI PROMOZIONALI DISPONIBILI:
    - "Battesimo del Volo" (15 min, €80): Volo introduttivo lungo la splendida costa di Savelletri e sulle rovine dell'antica città romana di Egnazia.
    - "Volo dei Trulli" (30 min, €140): Sorvolo dei secolari oliveti di Fasano fino a scorgere la magia dei trulli di Alberobello, rientro costiero.
@@ -770,7 +793,7 @@ Informazioni Chiave per rispondere:
    - Peso massimo consentito per il passeggero: 100 kg (per bilanciamento dell'ultraleggero).
    - Età minima: 16 anni (con consenso dei genitori).
    - Meteo: Il volo in ultraleggero è subordinato alle condizioni meteorologiche. Se il pilota valuta che il vento o la visibilità non sono idonei, il volo viene rimandato e riprogrammato in accordo con il passeggero (senza costi).
-   - Prenotazioni: Si effettuano online sul sito senza pagamento anticipato. Una volta confermata la prenotazione, viene inviata un'email automatica di conferma a guarinivolo1964@gmail.com e al passeggero. Il pagamento avverrà direttamente al campo di volo tramite POS o contanti.
+   - Prenotazioni: Si effettuano online sul sito senza pagamento anticipato. L'utente può scegliere il proprio istruttore preferito (il Pilota o Rocco Gallone). Una volta confermata la prenotazione, viene inviata un'email automatica di conferma all'istruttore designato e al passeggero. Il pagamento avverrà direttamente al campo di volo tramite POS o contanti.
 
 Rispondi sempre in italiano in modo chiaro ed esaustivo, incoraggiando l'utente a prenotare questa magnifica esperienza o a fare domande sulla sicurezza, la durata e le rotte. Non inventare dati non indicati.
 `;

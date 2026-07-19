@@ -35,7 +35,7 @@ export default function App() {
       duration: 15,
       price: 80,
       shortDesc: "Il primo approccio al cielo. Un volo costiero perfetto per vincere l'emozione e innamorarsi del volo.",
-      longDesc: "Il Battesimo dell'Aria è l'esperienza ideale per chi non ha mai volato in ultraleggero. Accompagnato dall'Istruttore Guarini, decollerai dalla pista in erba di Duneairpark. Sorvoleremo la costa adriatica di Savelletri e l'affascinante Parco Archeologico di Egnazia, ammirando le antiche rovine romane lambite dal mare cristallino.",
+      longDesc: "Il Battesimo dell'Aria è l'esperienza ideale per chi non ha mai volato in ultraleggero. Accompagnato da un pilota istruttore qualificato, decollerai dalla pista in erba di Duneairpark. Sorvoleremo la costa adriatica di Savelletri e l'affascinante Parco Archeologico di Egnazia, ammirando le antiche rovine romane lambite dal mare cristallino.",
       highlights: [
         "Decollo fronte mare da Duneairpark",
         "Sorvolo ravvicinato degli scavi di Egnazia",
@@ -83,7 +83,7 @@ export default function App() {
       duration: 60,
       price: 240,
       shortDesc: "Il tour definitivo della Valle d'Itria. Un'ora di pura magia tra i borghi più belli d'Italia e il litorale.",
-      longDesc: "L'esperienza di volo suprema. Un'ora intera nel cielo pugliese sorvolando l'intera ricchezza della zona: scavi romani, fari marittimi, Ostuni, Cisternino, Locorotondo, Alberobello e Fasano. Avrai anche l'opportunità di pilotare attivamente il velivolo sotto la supervisione e la guida esperta del Pilota Guarini.",
+      longDesc: "L'esperienza di volo suprema. Un'ora intera nel cielo pugliese sorvolando l'intera ricchezza della zona: scavi romani, fari marittimi, Ostuni, Cisternino, Locorotondo, Alberobello e Fasano. Avrai anche l'opportunità di pilotare attivamente il velivolo sotto la supervisione e la guida esperta del pilota.",
       highlights: [
         "Grand Tour completo sopra 5 borghi storici",
         "Sessione estesa di pilotaggio assistito ai doppi comandi",

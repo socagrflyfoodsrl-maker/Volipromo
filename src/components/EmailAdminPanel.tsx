@@ -142,7 +142,7 @@ export function EmailAdminPanel() {
             <Settings className="w-5 h-5 text-sky-400" /> Pannello Gestione Notifiche ed Email
           </h3>
           <p className="text-[11px] text-slate-400 max-w-xl">
-            Monitora i canali di comunicazione con i passeggeri e l'Istruttore Guarini. Configura SMTP o ispeziona le ricevute digitali generate in tempo reale.
+            Monitora i canali di comunicazione con i passeggeri e i piloti. Configura SMTP o ispeziona le ricevute digitali generate in tempo reale.
           </p>
         </div>
         
