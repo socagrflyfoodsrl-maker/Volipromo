@@ -20,11 +20,9 @@ if (usePostgres) {
     });
     
     pool.on("error", (err) => {
-      console.warn("PostgreSQL pool error, switching to JSON fallback:", err.message);
       usePostgres = false;
     });
   } catch (err: any) {
-    console.warn("Errore nell'inizializzazione del pool PostgreSQL, uso JSON:", err.message);
     usePostgres = false;
   }
 }
@@ -53,7 +51,6 @@ async function sql(strings: TemplateStringsArray, ...values: any[]) {
       err.message?.includes("invalid_connection_string");
       
     if (isConnError) {
-      console.warn("PostgreSQL query failed with connection/lookup error. Deactivating database and falling back to local JSON files. Error:", err.message);
       usePostgres = false;
     }
     throw err;
@@ -197,7 +194,6 @@ async function ensureTablesExist() {
     tablesCreated = true;
     console.log("Postgres tables checked/created successfully.");
   } catch (err: any) {
-    console.warn("Informazioni: Database Postgres non disponibile o non raggiungibile. Uso local fallback. Errore:", err.message);
     usePostgres = false;
   }
 }
@@ -220,7 +216,7 @@ async function getAdminPasswordAsync(): Promise<string> {
         }
       }
     } catch (err: any) {
-      console.warn("Informazioni: Recupero password da Postgres fallito, uso local fallback. Errore:", err.message);
+      // Quietly fall back
     }
   }
 
@@ -255,7 +251,7 @@ async function getBookingsAsync(): Promise<Booking[]> {
         }));
       }
     } catch (err: any) {
-      console.warn("Informazioni: Caricamento prenotazioni da Postgres fallito, uso local fallback. Errore:", err.message);
+      // Quietly fall back
     }
   }
   return bookings;
@@ -311,7 +307,6 @@ async function saveBookingAsync(booking: Booking): Promise<boolean> {
         return true;
       }
     } catch (err: any) {
-      console.warn("Informazioni: Salvataggio prenotazione su Postgres fallito, salvato localmente. Errore:", err.message);
       return false;
     }
   }
@@ -337,7 +332,6 @@ async function updateBookingStatusAsync(bookingId: string, status: "confirmed" |
         return true;
       }
     } catch (err: any) {
-      console.warn("Informazioni: Aggiornamento stato su Postgres fallito, aggiornato localmente. Errore:", err.message);
       return false;
     }
   }
@@ -362,7 +356,6 @@ async function deleteBookingAsync(bookingId: string): Promise<boolean> {
         return true;
       }
     } catch (err: any) {
-      console.warn("Informazioni: Eliminazione prenotazione da Postgres fallita, rimossa localmente. Errore:", err.message);
       return false;
     }
   }
@@ -420,7 +413,7 @@ async function getCustomGalleryImagesAsync(): Promise<GalleryItem[]> {
         }));
       }
     } catch (err: any) {
-      console.warn("Informazioni: Caricamento immagini da Postgres fallito, uso local fallback. Errore:", err.message);
+      // Quietly fall back
     }
   }
   return [...customGalleryImages].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -461,7 +454,6 @@ async function saveGalleryImageAsync(item: GalleryItem): Promise<boolean> {
         return true;
       }
     } catch (err: any) {
-      console.warn("Informazioni: Salvataggio immagine su Postgres fallito, salvato localmente. Errore:", err.message);
       return false;
     }
   }
@@ -483,7 +475,6 @@ async function deleteGalleryImageAsync(id: string): Promise<boolean> {
         return true;
       }
     } catch (err: any) {
-      console.warn("Informazioni: Cancellazione immagine da Postgres fallita, rimossa localmente. Errore:", err.message);
       return false;
     }
   }
