@@ -34,7 +34,7 @@ export default function BookingForm({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("POS o Carta di Credito (al campo)");
 
   // Pilot / Instructor selection state
-  const [selectedInstructor, setSelectedInstructor] = useState<string>("Pilota");
+  const [selectedInstructor, setSelectedInstructor] = useState<string>("Francesco Guarini");
 
   // Completed booking placeholder
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null);
@@ -269,9 +269,9 @@ export default function BookingForm({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2.5">
                   <button
                     type="button"
-                    onClick={() => setSelectedInstructor("Pilota")}
+                    onClick={() => setSelectedInstructor("Francesco Guarini")}
                     className={`p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 w-full ${
-                      selectedInstructor === "Pilota"
+                      selectedInstructor === "Francesco Guarini"
                         ? "bg-sky-600 text-white border-sky-600 shadow-md"
                         : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
                     }`}
@@ -280,8 +280,8 @@ export default function BookingForm({
                       👴
                     </div>
                     <div>
-                      <div className="font-black text-xs">Pilota</div>
-                      <div className={`text-[10px] mt-0.5 ${selectedInstructor === "Pilota" ? "text-sky-200" : "text-slate-400"}`}>
+                      <div className="font-black text-xs">Francesco Guarini</div>
+                      <div className={`text-[10px] mt-0.5 ${selectedInstructor === "Francesco Guarini" ? "text-sky-200" : "text-slate-400"}`}>
                         Capo Pilota • Voli Costieri & Sicurezza
                       </div>
                     </div>
@@ -744,7 +744,7 @@ export default function BookingForm({
                   </div>
                   <div>
                     <span className="text-[8px] text-slate-400 uppercase block">ISTRUTTORE</span>
-                    <span className="text-xs font-bold text-sky-700 truncate block">{completedBooking.instructor || "Pilota"}</span>
+                    <span className="text-xs font-bold text-sky-700 truncate block">{completedBooking.instructor || "Francesco Guarini"}</span>
                   </div>
                   <div>
                     <span className="text-[8px] text-slate-400 uppercase block">CONTATTO</span>

@@ -8,7 +8,7 @@ export default function PilotChat() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Ciao! Sono il tuo Pilota virtuale qui a Duneairpark. 🛩️\n\nHai domande sul volo in ultraleggero tra Fasano e Ostuni? Chiedimi pure informazioni sul meteo, sulla sicurezza, sulle nostre rotte o su come prepararti per il decollo!",
+      content: "Ciao! Sono l'assistente virtuale del Capo Pilota Francesco Guarini qui a Duneairpark. 🛩️\n\nHai domande sul volo in ultraleggero tra Fasano e Ostuni? Chiedimi pure informazioni sul meteo, sulla sicurezza, sulle nostre rotte o su come prepararti per il decollo!",
       timestamp: new Date(),
     },
   ]);
@@ -110,16 +110,16 @@ export default function PilotChat() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <span className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-sky-600 flex items-center justify-center font-bold text-white text-base">
-              G1
+              FG
             </span>
             <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-950" />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h3 className="text-sm font-bold font-display text-white">Pilota AI</h3>
+              <h3 className="text-sm font-bold font-display text-white">Francesco Guarini (AI)</h3>
               <Sparkles className="w-3.5 h-3.5 text-sky-400" />
             </div>
-            <span className="text-[10px] text-slate-400">Assistente virtuale Duneairpark</span>
+            <span className="text-[10px] text-slate-400">Assistente virtuale del Capo Pilota</span>
           </div>
         </div>
 

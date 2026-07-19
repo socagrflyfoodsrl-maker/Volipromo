@@ -8,14 +8,32 @@ import pg from "pg";
 
 dotenv.config({ override: true });
 
-// Setup PostgreSQL pool with SSL enabled by default (standard for hosted DBs like Neon/Supabase)
-const pool = new pg.Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: process.env.POSTGRES_URL?.includes("sslmode=disable") ? false : { rejectUnauthorized: false }
-});
+let usePostgres = !!process.env.POSTGRES_URL;
+let pool: pg.Pool | null = null;
+
+if (usePostgres) {
+  try {
+    pool = new pg.Pool({
+      connectionString: process.env.POSTGRES_URL,
+      ssl: process.env.POSTGRES_URL?.includes("sslmode=disable") ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 4000, // Timeout after 4 seconds to prevent long hangs
+    });
+    
+    pool.on("error", (err) => {
+      console.warn("PostgreSQL pool error, switching to JSON fallback:", err.message);
+      usePostgres = false;
+    });
+  } catch (err: any) {
+    console.warn("Errore nell'inizializzazione del pool PostgreSQL, uso JSON:", err.message);
+    usePostgres = false;
+  }
+}
 
 // Polyfill the Vercel sql tagged template function using standard pg Pool
 async function sql(strings: TemplateStringsArray, ...values: any[]) {
+  if (!usePostgres || !pool) {
+    throw new Error("PostgreSQL is disabled or not initialized.");
+  }
   let queryText = "";
   for (let i = 0; i < strings.length; i++) {
     queryText += strings[i];
@@ -23,7 +41,23 @@ async function sql(strings: TemplateStringsArray, ...values: any[]) {
       queryText += `$${i + 1}`;
     }
   }
-  return pool.query(queryText, values);
+  try {
+    return await pool.query(queryText, values);
+  } catch (err: any) {
+    const isConnError = 
+      err.code === "ENOTFOUND" || 
+      err.code === "EAI_AGAIN" || 
+      err.code === "ECONNREFUSED" || 
+      err.message?.includes("connection") || 
+      err.message?.includes("getaddrinfo") ||
+      err.message?.includes("invalid_connection_string");
+      
+    if (isConnError) {
+      console.warn("PostgreSQL query failed with connection/lookup error. Deactivating database and falling back to local JSON files. Error:", err.message);
+      usePostgres = false;
+    }
+    throw err;
+  }
 }
 
 interface Booking {
@@ -117,7 +151,7 @@ let tablesCreated = false;
 
 async function ensureTablesExist() {
   if (tablesCreated) return;
-  if (!process.env.POSTGRES_URL) return;
+  if (!usePostgres) return;
 
   try {
     // We check and create the tables if they don't exist
@@ -162,8 +196,8 @@ async function ensureTablesExist() {
     `;
     tablesCreated = true;
     console.log("Postgres tables checked/created successfully.");
-  } catch (err) {
-    console.error("Errore nella creazione delle tabelle Postgres:", err);
+  } catch (err: any) {
+    console.warn("Informazioni: Database Postgres non disponibile o non raggiungibile. Uso local fallback. Errore:", err.message);
   }
 }
 
@@ -174,16 +208,18 @@ async function getAdminPasswordAsync(): Promise<string> {
     return cachedAdminPassword;
   }
 
-  if (process.env.POSTGRES_URL) {
+  if (usePostgres) {
     try {
       await ensureTablesExist();
-      const { rows } = await sql`SELECT value FROM admin_config WHERE key = 'password' LIMIT 1;`;
-      if (rows && rows.length > 0) {
-        cachedAdminPassword = rows[0].value;
-        return cachedAdminPassword;
+      if (usePostgres) {
+        const { rows } = await sql`SELECT value FROM admin_config WHERE key = 'password' LIMIT 1;`;
+        if (rows && rows.length > 0) {
+          cachedAdminPassword = rows[0].value;
+          return cachedAdminPassword;
+        }
       }
-    } catch (err) {
-      console.error("Errore nel recupero della password da Postgres:", err);
+    } catch (err: any) {
+      console.warn("Informazioni: Recupero password da Postgres fallito, uso local fallback. Errore:", err.message);
     }
   }
 
@@ -195,28 +231,30 @@ async function getAdminPasswordAsync(): Promise<string> {
 }
 
 async function getBookingsAsync(): Promise<Booking[]> {
-  if (process.env.POSTGRES_URL) {
+  if (usePostgres) {
     try {
       await ensureTablesExist();
-      const { rows } = await sql`SELECT * FROM bookings ORDER BY created_at DESC;`;
-      return rows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        email: row.email,
-        phone: row.phone,
-        weight: Number(row.weight),
-        date: row.date,
-        timeSlot: row.time_slot,
-        experienceId: row.experience_id,
-        experienceName: row.experience_name,
-        price: Number(row.price),
-        paymentMethod: row.payment_method,
-        status: row.status as "confirmed" | "pending_weather",
-        createdAt: row.created_at,
-        instructor: row.instructor || "Pilota",
-      }));
-    } catch (err) {
-      console.error("Errore nel caricamento delle prenotazioni da Postgres:", err);
+      if (usePostgres) {
+        const { rows } = await sql`SELECT * FROM bookings ORDER BY created_at DESC;`;
+        return rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          email: row.email,
+          phone: row.phone,
+          weight: Number(row.weight),
+          date: row.date,
+          timeSlot: row.time_slot,
+          experienceId: row.experience_id,
+          experienceName: row.experience_name,
+          price: Number(row.price),
+          paymentMethod: row.payment_method,
+          status: row.status as "confirmed" | "pending_weather",
+          createdAt: row.created_at,
+          instructor: row.instructor || "Francesco Guarini",
+        }));
+      }
+    } catch (err: any) {
+      console.warn("Informazioni: Caricamento prenotazioni da Postgres fallito, uso local fallback. Errore:", err.message);
     }
   }
   return bookings;
@@ -232,45 +270,47 @@ async function saveBookingAsync(booking: Booking): Promise<boolean> {
   }
   saveBookings();
 
-  if (process.env.POSTGRES_URL) {
+  if (usePostgres) {
     try {
       await ensureTablesExist();
-      await sql`
-        INSERT INTO bookings (
-          id, name, email, phone, weight, date, time_slot, experience_id, experience_name, price, payment_method, status, created_at, instructor
-        ) VALUES (
-          ${booking.id},
-          ${booking.name},
-          ${booking.email},
-          ${booking.phone},
-          ${booking.weight},
-          ${booking.date},
-          ${booking.timeSlot},
-          ${booking.experienceId},
-          ${booking.experienceName},
-          ${booking.price},
-          ${booking.paymentMethod},
-          ${booking.status},
-          ${booking.createdAt},
-          ${booking.instructor || "Pilota"}
-        ) ON CONFLICT (id) DO UPDATE SET
-          name = EXCLUDED.name,
-          email = EXCLUDED.email,
-          phone = EXCLUDED.phone,
-          weight = EXCLUDED.weight,
-          date = EXCLUDED.date,
-          time_slot = EXCLUDED.time_slot,
-          experience_id = EXCLUDED.experience_id,
-          experience_name = EXCLUDED.experience_name,
-          price = EXCLUDED.price,
-          payment_method = EXCLUDED.payment_method,
-          status = EXCLUDED.status,
-          created_at = EXCLUDED.created_at,
-          instructor = EXCLUDED.instructor;
-      `;
-      return true;
-    } catch (err) {
-      console.error("Errore nel salvataggio della prenotazione su Postgres:", err);
+      if (usePostgres) {
+        await sql`
+          INSERT INTO bookings (
+            id, name, email, phone, weight, date, time_slot, experience_id, experience_name, price, payment_method, status, created_at, instructor
+          ) VALUES (
+            ${booking.id},
+            ${booking.name},
+            ${booking.email},
+            ${booking.phone},
+            ${booking.weight},
+            ${booking.date},
+            ${booking.timeSlot},
+            ${booking.experienceId},
+            ${booking.experienceName},
+            ${booking.price},
+            ${booking.paymentMethod},
+            ${booking.status},
+            ${booking.createdAt},
+            ${booking.instructor || "Francesco Guarini"}
+          ) ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name,
+            email = EXCLUDED.email,
+            phone = EXCLUDED.phone,
+            weight = EXCLUDED.weight,
+            date = EXCLUDED.date,
+            time_slot = EXCLUDED.time_slot,
+            experience_id = EXCLUDED.experience_id,
+            experience_name = EXCLUDED.experience_name,
+            price = EXCLUDED.price,
+            payment_method = EXCLUDED.payment_method,
+            status = EXCLUDED.status,
+            created_at = EXCLUDED.created_at,
+            instructor = EXCLUDED.instructor;
+        `;
+        return true;
+      }
+    } catch (err: any) {
+      console.warn("Informazioni: Salvataggio prenotazione su Postgres fallito, salvato localmente. Errore:", err.message);
       return false;
     }
   }
@@ -284,17 +324,19 @@ async function updateBookingStatusAsync(bookingId: string, status: "confirmed" |
     saveBookings();
   }
 
-  if (process.env.POSTGRES_URL) {
+  if (usePostgres) {
     try {
       await ensureTablesExist();
-      await sql`
-        UPDATE bookings
-        SET status = ${status}
-        WHERE LOWER(id) = ${bookingId.toLowerCase()};
-      `;
-      return true;
-    } catch (err) {
-      console.error("Errore nell'aggiornamento dello stato su Postgres:", err);
+      if (usePostgres) {
+        await sql`
+          UPDATE bookings
+          SET status = ${status}
+          WHERE LOWER(id) = ${bookingId.toLowerCase()};
+        `;
+        return true;
+      }
+    } catch (err: any) {
+      console.warn("Informazioni: Aggiornamento stato su Postgres fallito, aggiornato localmente. Errore:", err.message);
       return false;
     }
   }
@@ -308,16 +350,18 @@ async function deleteBookingAsync(bookingId: string): Promise<boolean> {
     saveBookings();
   }
 
-  if (process.env.POSTGRES_URL) {
+  if (usePostgres) {
     try {
       await ensureTablesExist();
-      await sql`
-        DELETE FROM bookings
-        WHERE LOWER(id) = ${bookingId.toLowerCase()};
-      `;
-      return true;
-    } catch (err) {
-      console.error("Errore nell'eliminazione della prenotazione da Postgres:", err);
+      if (usePostgres) {
+        await sql`
+          DELETE FROM bookings
+          WHERE LOWER(id) = ${bookingId.toLowerCase()};
+        `;
+        return true;
+      }
+    } catch (err: any) {
+      console.warn("Informazioni: Eliminazione prenotazione da Postgres fallita, rimossa localmente. Errore:", err.message);
       return false;
     }
   }
@@ -342,8 +386,8 @@ function loadGalleryImages(): GalleryItem[] {
       const data = fs.readFileSync(GALLERY_FILE, "utf-8");
       return JSON.parse(data);
     }
-  } catch (err) {
-    console.error("Errore nel caricamento delle immagini della galleria:", err);
+  } catch (err: any) {
+    console.warn("Informazioni: Caricamento immagini galleria locale:", err.message);
   }
   return [];
 }
@@ -353,27 +397,29 @@ const customGalleryImages: GalleryItem[] = loadGalleryImages();
 function saveGalleryImages() {
   try {
     fs.writeFileSync(GALLERY_FILE, JSON.stringify(customGalleryImages, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Errore nel salvataggio delle immagini della galleria:", err);
+  } catch (err: any) {
+    console.warn("Informazioni: Salvataggio immagini galleria locale fallito:", err.message);
   }
 }
 
 async function getCustomGalleryImagesAsync(): Promise<GalleryItem[]> {
-  if (process.env.POSTGRES_URL) {
+  if (usePostgres) {
     try {
       await ensureTablesExist();
-      const { rows } = await sql`SELECT * FROM gallery_images ORDER BY created_at DESC;`;
-      return rows.map((row) => ({
-        id: row.id,
-        src: row.src,
-        category: row.category as "campo" | "territorio" | "voli",
-        title: row.title,
-        description: row.description,
-        tag: row.tag,
-        createdAt: row.created_at,
-      }));
-    } catch (err) {
-      console.error("Errore nel caricamento delle immagini da Postgres:", err);
+      if (usePostgres) {
+        const { rows } = await sql`SELECT * FROM gallery_images ORDER BY created_at DESC;`;
+        return rows.map((row) => ({
+          id: row.id,
+          src: row.src,
+          category: row.category as "campo" | "territorio" | "voli",
+          title: row.title,
+          description: row.description,
+          tag: row.tag,
+          createdAt: row.created_at,
+        }));
+      }
+    } catch (err: any) {
+      console.warn("Informazioni: Caricamento immagini da Postgres fallito, uso local fallback. Errore:", err.message);
     }
   }
   return [...customGalleryImages].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -388,31 +434,33 @@ async function saveGalleryImageAsync(item: GalleryItem): Promise<boolean> {
   }
   saveGalleryImages();
 
-  if (process.env.POSTGRES_URL) {
+  if (usePostgres) {
     try {
       await ensureTablesExist();
-      await sql`
-        INSERT INTO gallery_images (
-          id, src, category, title, description, tag, created_at
-        ) VALUES (
-          ${item.id},
-          ${item.src},
-          ${item.category},
-          ${item.title},
-          ${item.description},
-          ${item.tag},
-          ${item.createdAt}
-        ) ON CONFLICT (id) DO UPDATE SET
-          src = EXCLUDED.src,
-          category = EXCLUDED.category,
-          title = EXCLUDED.title,
-          description = EXCLUDED.description,
-          tag = EXCLUDED.tag,
-          created_at = EXCLUDED.created_at;
-      `;
-      return true;
-    } catch (err) {
-      console.error("Errore nel salvataggio dell'immagine in Postgres:", err);
+      if (usePostgres) {
+        await sql`
+          INSERT INTO gallery_images (
+            id, src, category, title, description, tag, created_at
+          ) VALUES (
+            ${item.id},
+            ${item.src},
+            ${item.category},
+            ${item.title},
+            ${item.description},
+            ${item.tag},
+            ${item.createdAt}
+          ) ON CONFLICT (id) DO UPDATE SET
+            src = EXCLUDED.src,
+            category = EXCLUDED.category,
+            title = EXCLUDED.title,
+            description = EXCLUDED.description,
+            tag = EXCLUDED.tag,
+            created_at = EXCLUDED.created_at;
+        `;
+        return true;
+      }
+    } catch (err: any) {
+      console.warn("Informazioni: Salvataggio immagine su Postgres fallito, salvato localmente. Errore:", err.message);
       return false;
     }
   }
@@ -426,13 +474,15 @@ async function deleteGalleryImageAsync(id: string): Promise<boolean> {
     saveGalleryImages();
   }
 
-  if (process.env.POSTGRES_URL) {
+  if (usePostgres) {
     try {
       await ensureTablesExist();
-      await sql`DELETE FROM gallery_images WHERE id = ${id};`;
-      return true;
-    } catch (err) {
-      console.error("Errore nella cancellazione dell'immagine in Postgres:", err);
+      if (usePostgres) {
+        await sql`DELETE FROM gallery_images WHERE id = ${id};`;
+        return true;
+      }
+    } catch (err: any) {
+      console.warn("Informazioni: Cancellazione immagine da Postgres fallita, rimossa localmente. Errore:", err.message);
       return false;
     }
   }
@@ -595,10 +645,10 @@ app.use(express.json());
         return res.status(400).json({ error: "Tutti i campi obbligatori devono essere compilati." });
       }
 
-      const selectedInstructor = instructor || "Pilota";
+      const selectedInstructor = instructor || "Francesco Guarini";
       const isRocco = selectedInstructor.includes("Rocco") || selectedInstructor.includes("Gallone");
       const pilotEmail = isRocco ? "roccogallonevolo@gmail.com" : (process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com");
-      const pilotName = isRocco ? "Istruttore Rocco Gallone" : "Pilota";
+      const pilotName = isRocco ? "Istruttore Rocco Gallone" : "Francesco Guarini";
 
       const bookingId = "DUNE-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
@@ -944,10 +994,10 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
         return res.status(404).json({ error: "Prenotazione non trovata." });
       }
 
-      const selectedInstructor = booking.instructor || "Pilota";
+      const selectedInstructor = booking.instructor || "Francesco Guarini";
       const isRocco = selectedInstructor.includes("Rocco") || selectedInstructor.includes("Gallone");
       const pilotEmail = isRocco ? "roccogallonevolo@gmail.com" : (process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com");
-      const pilotName = isRocco ? "Istruttore Rocco Gallone" : "Pilota";
+      const pilotName = isRocco ? "Istruttore Rocco Gallone" : "Francesco Guarini";
 
       const emailTextToPilot = `Ciao ${pilotName},
 Hai richiesto il rinvio dei dettagli per la prenotazione ${booking.id}!
@@ -1027,7 +1077,7 @@ Il tuo stile di comunicazione è estremamente accogliente, cordiale, caloroso e 
 Informazioni Chiave per rispondere:
 1. CAMPO DI VOLO DUNEAIRPARK: Si trova sulla costa tra Fasano e Ostuni. Offre una pista in erba ben curata, ideale per decolli e atterraggi panoramici a due passi dal mare Adriatico e dai resti archeologici di Egnazia.
 2. I NOSTRI PILOTI ISTRUTTORI:
-   - Pilota: Capo pilota ed esperto istruttore certificato con migliaia di ore di volo, fondatore di Duneairpark. Specializzato in voli panoramici costieri e sicurezza operativa. Email: guarinivolo1964@gmail.com
+   - Francesco Guarini: Pilota Capo ed esperto istruttore certificato con migliaia di ore di volo, fondatore di Duneairpark. Specializzato in voli panoramici costieri e sicurezza operativa. Email: guarinivolo1964@gmail.com
    - Istruttore Rocco Gallone: Secondo pilota istruttore certificato di grande esperienza, esperto in ultraleggeri e volo sportivo. Appassionato di navigazione aerea sopra la Valle d'Itria e i Trulli. Email: roccogallonevolo@gmail.com
 3. VOLI PROMOZIONALI DISPONIBILI:
    - "Battesimo del Volo" (15 min, €80): Volo introduttivo lungo la splendida costa di Savelletri e sulle rovine dell'antica città romana di Egnazia.
@@ -1038,7 +1088,7 @@ Informazioni Chiave per rispondere:
    - Peso massimo consentito per il passeggero: 100 kg (per bilanciamento dell'ultraleggero).
    - Età minima: 16 anni (con consenso dei genitori).
    - Meteo: Il volo in ultraleggero è subordinato alle condizioni meteorologiche. Se il pilota valuta che il vento o la visibilità non sono idonei, il volo viene rimandato e riprogrammato in accordo con il passeggero (senza costi).
-   - Prenotazioni: Si effettuano online sul sito senza pagamento anticipato. L'utente può scegliere il proprio istruttore preferito (il Pilota o Rocco Gallone). Una volta confermata la prenotazione, viene inviata un'email automatica di conferma all'istruttore designato e al passeggero. Il pagamento avverrà direttamente al campo di volo tramite POS o contanti.
+   - Prenotazioni: Si effettuano online sul sito senza pagamento anticipato. L'utente può scegliere il proprio istruttore preferito (Francesco Guarini o Rocco Gallone). Una volta confermata la prenotazione, viene inviata un'email automatica di conferma all'istruttore designato e al passeggero. Il pagamento avverrà direttamente al campo di volo tramite POS o contanti.
 
 Rispondi sempre in italiano in modo chiaro ed esaustivo, incoraggiando l'utente a prenotare questa magnifica esperienza o a fare domande sulla sicurezza, la durata e le rotte. Non inventare dati non indicati.
 `;

@@ -647,6 +647,7 @@ export default function AdminPanel() {
                           <div className="text-[11px] text-slate-500 flex flex-col gap-0.5 mt-0.5">
                             <span className="flex items-center gap-1">✉️ {b.email}</span>
                             <span className="flex items-center gap-1">📞 {b.phone}</span>
+                            <span className="flex items-center gap-1 text-sky-700 font-medium">👨‍✈️ {b.instructor || "Francesco Guarini"}</span>
                           </div>
                         </td>
                         <td className="py-4 px-5 font-medium text-slate-800">
