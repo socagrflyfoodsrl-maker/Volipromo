@@ -633,7 +633,8 @@ const ai = new GoogleGenAI({
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ limit: "20mb", extended: true }));
 app.use("/src/assets", express.static(path.join(process.cwd(), "src/assets")));
 
 // Define all routes synchronously to prevent race conditions or 404s on serverless platforms (like Vercel)
