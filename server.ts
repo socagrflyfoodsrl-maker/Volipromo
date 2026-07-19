@@ -4,9 +4,27 @@ import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import nodemailer from "nodemailer";
 import fs from "fs";
-import { sql } from "@vercel/postgres";
+import pg from "pg";
 
 dotenv.config({ override: true });
+
+// Setup PostgreSQL pool with SSL enabled by default (standard for hosted DBs like Neon/Supabase)
+const pool = new pg.Pool({
+  connectionString: process.env.POSTGRES_URL,
+  ssl: process.env.POSTGRES_URL?.includes("sslmode=disable") ? false : { rejectUnauthorized: false }
+});
+
+// Polyfill the Vercel sql tagged template function using standard pg Pool
+async function sql(strings: TemplateStringsArray, ...values: any[]) {
+  let queryText = "";
+  for (let i = 0; i < strings.length; i++) {
+    queryText += strings[i];
+    if (i < values.length) {
+      queryText += `$${i + 1}`;
+    }
+  }
+  return pool.query(queryText, values);
+}
 
 interface Booking {
   id: string;
