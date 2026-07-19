@@ -385,7 +385,7 @@ export default function App() {
                         </span>
                         <h3 className="text-xl font-display font-black text-slate-900 mt-3">Scegli la Rotta</h3>
                         <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                          Tutti i voli decollano dal campo privato di <strong>Duneairpark</strong>, situato sulla costa adriatica tra Fasano ed Ostuni.
+                          Tutti i voli decollano dal campo privato di <strong>Duneairpark</strong>, situato sulla costa adriatica tra Torre Canne e Ostuni.
                         </p>
 
                         <div className="space-y-3 mt-5">

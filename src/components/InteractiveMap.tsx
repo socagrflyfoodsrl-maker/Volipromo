@@ -29,8 +29,8 @@ export default function InteractiveMap({
     {
       id: "duneairpark",
       name: "Campo di Volo Duneairpark 🛫",
-      x: 320,
-      y: 120,
+      x: 450,
+      y: 280,
       desc: "La base di decollo fronte mare con pista in erba. Punto di partenza di tutti i voli.",
     },
     {
@@ -89,19 +89,19 @@ export default function InteractiveMap({
   const getFlightPath = (pkgId: string) => {
     switch (pkgId) {
       case "battesimo":
-        // Duneairpark (320,120) -> Egnazia (280,70) -> Savelletri Coast (380,80) -> Duneairpark (320,120)
-        return "M 320 120 Q 280 70 300 60 T 360 80 Z";
+        // Duneairpark (450,280) -> Torre Canne -> Egnazia (280,70) -> Duneairpark (450,280)
+        return "M 450 280 C 410 210, 330 110, 280 70 C 310 60, 390 150, 450 280 Z";
       case "trulli":
-        // Duneairpark (320,120) -> Fasano (200,160) -> Alberobello (80,220) -> Savelletri (350,90) -> Duneairpark
-        return "M 320 120 C 240 130, 220 150, 200 160 C 130 180, 100 200, 80 220 C 150 170, 280 120, 320 120 Z";
+        // Duneairpark (450,280) -> Fasano (200,160) -> Alberobello (80,220) -> Duneairpark (450,280)
+        return "M 450 280 C 350 250, 220 180, 200 160 C 130 180, 100 200, 80 220 C 150 280, 320 310, 450 280 Z";
       case "cittabianche":
-        // Duneairpark (320,120) -> Fasano (200,160) -> Ostuni (480,380) -> Torre Canne (420,200) -> Duneairpark
-        return "M 320 120 C 230 140, 220 220, 320 280 C 420 340, 460 360, 480 380 C 440 280, 430 220, 320 120 Z";
+        // Duneairpark (450,280) -> Torre Canne (420,200) -> Ostuni (480,380) -> Duneairpark (450,280)
+        return "M 450 280 C 420 200, 380 180, 320 220 C 350 300, 420 350, 480 380 C 490 330, 470 300, 450 280 Z";
       case "grandtour":
-        // Full circular loop encompassing all points
-        return "M 320 120 C 180 140, 120 180, 80 220 C 120 260, 140 280, 160 280 C 210 300, 240 310, 260 330 C 370 360, 430 370, 480 380 C 450 250, 410 180, 320 120 Z";
+        // Full circular loop encompassing all points starting and ending at Duneairpark (450,280)
+        return "M 450 280 C 380 200, 280 100, 280 70 C 180 140, 120 180, 80 220 C 120 260, 160 280, 260 330 C 370 360, 430 370, 480 380 C 490 330, 470 300, 450 280 Z";
       default:
-        return "M 320 120 Q 280 70 300 60 T 360 80 Z";
+        return "M 450 280 C 410 210, 330 110, 280 70 Z";
     }
   };
 
@@ -170,7 +170,7 @@ export default function InteractiveMap({
 
             {/* Connecting Roads / Guide lines in light grey */}
             <path
-              d="M 200 160 Q 260 110 320 120 T 420 200 T 480 380"
+              d="M 200 160 Q 310 180 420 200 T 450 280 T 480 380"
               fill="none"
               stroke="#f1f5f9"
               strokeWidth="3"
@@ -221,10 +221,10 @@ export default function InteractiveMap({
             </AnimatePresence>
 
             {/* Glowing active aircraft icon following the path */}
-            <g transform="translate(-10, -10)">
+            <g>
               {/* Takeoff point marker */}
-              <circle cx="320" cy="120" r="12" fill="#bae6fd" className="animate-ping opacity-75" />
-              <circle cx="320" cy="120" r="6" fill="#0284c7" />
+              <circle cx="450" cy="280" r="12" fill="#bae6fd" className="animate-ping opacity-75" />
+              <circle cx="450" cy="280" r="6" fill="#0284c7" />
             </g>
 
             {/* Rendering Landmarks */}
