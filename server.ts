@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import nodemailer from "nodemailer";
 import fs from "fs";
+import { sql } from "@vercel/postgres";
 
 dotenv.config({ override: true });
 
@@ -90,6 +91,199 @@ function saveBookings() {
   } catch (err) {
     console.error("Errore nel salvataggio delle prenotazioni:", err);
   }
+}
+
+// --- Vercel Postgres Database Helper functions ---
+let tablesCreated = false;
+
+async function ensureTablesExist() {
+  if (tablesCreated) return;
+  if (!process.env.POSTGRES_URL) return;
+
+  try {
+    // We check and create the tables if they don't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS admin_config (
+        key VARCHAR(50) PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS bookings (
+        id VARCHAR(50) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(100) NOT NULL,
+        weight NUMERIC NOT NULL,
+        date VARCHAR(100) NOT NULL,
+        time_slot VARCHAR(100) NOT NULL,
+        experience_id VARCHAR(100) NOT NULL,
+        experience_name VARCHAR(255) NOT NULL,
+        price NUMERIC NOT NULL,
+        payment_method VARCHAR(100) NOT NULL,
+        status VARCHAR(100) NOT NULL,
+        created_at VARCHAR(100) NOT NULL
+      );
+    `;
+    tablesCreated = true;
+    console.log("Postgres tables checked/created successfully.");
+  } catch (err) {
+    console.error("Errore nella creazione delle tabelle Postgres:", err);
+  }
+}
+
+let cachedAdminPassword = "";
+
+async function getAdminPasswordAsync(): Promise<string> {
+  if (cachedAdminPassword) {
+    return cachedAdminPassword;
+  }
+
+  if (process.env.POSTGRES_URL) {
+    try {
+      await ensureTablesExist();
+      const { rows } = await sql`SELECT value FROM admin_config WHERE key = 'password' LIMIT 1;`;
+      if (rows && rows.length > 0) {
+        cachedAdminPassword = rows[0].value;
+        return cachedAdminPassword;
+      }
+    } catch (err) {
+      console.error("Errore nel recupero della password da Postgres:", err);
+    }
+  }
+
+  if (adminConfig.password) {
+    cachedAdminPassword = adminConfig.password;
+    return cachedAdminPassword;
+  }
+  return cleanEnvVal(process.env.ADMIN_PASSWORD) || "dune2026";
+}
+
+async function getBookingsAsync(): Promise<Booking[]> {
+  if (process.env.POSTGRES_URL) {
+    try {
+      await ensureTablesExist();
+      const { rows } = await sql`SELECT * FROM bookings ORDER BY created_at DESC;`;
+      return rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        email: row.email,
+        phone: row.phone,
+        weight: Number(row.weight),
+        date: row.date,
+        timeSlot: row.time_slot,
+        experienceId: row.experience_id,
+        experienceName: row.experience_name,
+        price: Number(row.price),
+        paymentMethod: row.payment_method,
+        status: row.status as "confirmed" | "pending_weather",
+        createdAt: row.created_at,
+      }));
+    } catch (err) {
+      console.error("Errore nel caricamento delle prenotazioni da Postgres:", err);
+    }
+  }
+  return bookings;
+}
+
+async function saveBookingAsync(booking: Booking): Promise<boolean> {
+  // Always update in-memory cache and local file
+  const index = bookings.findIndex(b => b.id.toLowerCase() === booking.id.toLowerCase());
+  if (index !== -1) {
+    bookings[index] = booking;
+  } else {
+    bookings.push(booking);
+  }
+  saveBookings();
+
+  if (process.env.POSTGRES_URL) {
+    try {
+      await ensureTablesExist();
+      await sql`
+        INSERT INTO bookings (
+          id, name, email, phone, weight, date, time_slot, experience_id, experience_name, price, payment_method, status, created_at
+        ) VALUES (
+          ${booking.id},
+          ${booking.name},
+          ${booking.email},
+          ${booking.phone},
+          ${booking.weight},
+          ${booking.date},
+          ${booking.timeSlot},
+          ${booking.experienceId},
+          ${booking.experienceName},
+          ${booking.price},
+          ${booking.paymentMethod},
+          ${booking.status},
+          ${booking.createdAt}
+        ) ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          email = EXCLUDED.email,
+          phone = EXCLUDED.phone,
+          weight = EXCLUDED.weight,
+          date = EXCLUDED.date,
+          time_slot = EXCLUDED.time_slot,
+          experience_id = EXCLUDED.experience_id,
+          experience_name = EXCLUDED.experience_name,
+          price = EXCLUDED.price,
+          payment_method = EXCLUDED.payment_method,
+          status = EXCLUDED.status,
+          created_at = EXCLUDED.created_at;
+      `;
+      return true;
+    } catch (err) {
+      console.error("Errore nel salvataggio della prenotazione su Postgres:", err);
+      return false;
+    }
+  }
+  return true;
+}
+
+async function updateBookingStatusAsync(bookingId: string, status: "confirmed" | "pending_weather"): Promise<boolean> {
+  const localBooking = bookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
+  if (localBooking) {
+    localBooking.status = status;
+    saveBookings();
+  }
+
+  if (process.env.POSTGRES_URL) {
+    try {
+      await ensureTablesExist();
+      await sql`
+        UPDATE bookings
+        SET status = ${status}
+        WHERE LOWER(id) = ${bookingId.toLowerCase()};
+      `;
+      return true;
+    } catch (err) {
+      console.error("Errore nell'aggiornamento dello stato su Postgres:", err);
+      return false;
+    }
+  }
+  return true;
+}
+
+async function deleteBookingAsync(bookingId: string): Promise<boolean> {
+  const index = bookings.findIndex(b => b.id.toLowerCase() === bookingId.toLowerCase());
+  if (index !== -1) {
+    bookings.splice(index, 1);
+    saveBookings();
+  }
+
+  if (process.env.POSTGRES_URL) {
+    try {
+      await ensureTablesExist();
+      await sql`
+        DELETE FROM bookings
+        WHERE LOWER(id) = ${bookingId.toLowerCase()};
+      `;
+      return true;
+    } catch (err) {
+      console.error("Errore nell'eliminazione della prenotazione da Postgres:", err);
+      return false;
+    }
+  }
+  return true;
 }
 
 const emailLogs: EmailLog[] = [];
@@ -266,8 +460,7 @@ app.use(express.json());
         createdAt: new Date().toISOString(),
       };
 
-      bookings.push(newBooking);
-      saveBookings();
+      await saveBookingAsync(newBooking);
 
 
       const emailTextToPilot = `Ciao Pilota Guarini,
@@ -337,13 +530,14 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
   });
 
   // API Route: Get bookings for search
-  app.get("/api/bookings", (req, res) => {
+  app.get("/api/bookings", async (req, res) => {
     const { email, code } = req.query;
     if (!email && !code) {
       return res.status(400).json({ error: "Fornire l'email o il codice di prenotazione." });
     }
 
-    const filtered = bookings.filter((b) => {
+    const allBookings = await getBookingsAsync();
+    const filtered = allBookings.filter((b) => {
       if (code && b.id.toLowerCase() === (code as string).toLowerCase()) return true;
       if (email && b.email.toLowerCase() === (email as string).toLowerCase()) return true;
       return false;
@@ -353,19 +547,24 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
   });
 
   // Middleware to authenticate admin requests
-  const checkAdminAuth = (req: any, res: any, next: any) => {
-    const authHeader = req.headers.authorization;
-    const adminPass = getAdminPassword();
-    if (authHeader === adminPass) {
-      return next();
+  const checkAdminAuth = async (req: any, res: any, next: any) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const adminPass = await getAdminPasswordAsync();
+      if (authHeader === adminPass) {
+        return next();
+      }
+      return res.status(401).json({ error: "Accesso non autorizzato. Password amministratore non valida." });
+    } catch (err) {
+      console.error("Errore nell'autenticazione admin:", err);
+      return res.status(500).json({ error: "Errore durante la verifica delle credenziali." });
     }
-    return res.status(401).json({ error: "Accesso non autorizzato. Password amministratore non valida." });
   };
 
   // API Route: Admin login
-  app.post("/api/admin/login", (req, res) => {
+  app.post("/api/admin/login", async (req, res) => {
     const { password } = req.body;
-    const adminPass = getAdminPassword();
+    const adminPass = await getAdminPasswordAsync();
     if (password === adminPass) {
       return res.json({ success: true });
     }
@@ -373,45 +572,71 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
   });
 
   // API Route: Change Admin Password (Admin only)
-  app.post("/api/admin/change-password", checkAdminAuth, (req, res) => {
+  app.post("/api/admin/change-password", checkAdminAuth, async (req, res) => {
     const { newPassword } = req.body;
     if (!newPassword || newPassword.trim().length < 4) {
       return res.status(400).json({ error: "La password deve contenere almeno 4 caratteri." });
     }
-    adminConfig.password = newPassword.trim();
+    const passwordToSave = newPassword.trim();
+
+    cachedAdminPassword = passwordToSave;
+    adminConfig.password = passwordToSave;
     saveAdminConfig();
+
+    if (process.env.POSTGRES_URL) {
+      try {
+        await ensureTablesExist();
+        await sql`
+          INSERT INTO admin_config (key, value)
+          VALUES ('password', ${passwordToSave})
+          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+        `;
+      } catch (err) {
+        console.error("Errore nel salvataggio della password su Postgres:", err);
+        return res.status(500).json({ error: "Errore nel salvataggio della password nel database." });
+      }
+    }
+
     return res.json({ success: true, message: "Password aggiornata con successo!" });
   });
 
   // API Route: Get ALL bookings (Admin only)
-  app.get("/api/admin/bookings", checkAdminAuth, (req, res) => {
-    return res.json({ bookings });
+  app.get("/api/admin/bookings", checkAdminAuth, async (req, res) => {
+    const allBookings = await getBookingsAsync();
+    return res.json({ bookings: allBookings });
   });
 
   // API Route: Update Booking Status (Admin only)
-  app.post("/api/admin/bookings/update-status", checkAdminAuth, (req, res) => {
+  app.post("/api/admin/bookings/update-status", checkAdminAuth, async (req, res) => {
     const { bookingId, status } = req.body;
-    const booking = bookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
+    const allBookings = await getBookingsAsync();
+    const booking = allBookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
     if (!booking) {
       return res.status(404).json({ error: "Prenotazione non trovata." });
     }
     if (status === "confirmed" || status === "pending_weather") {
+      const success = await updateBookingStatusAsync(bookingId, status);
+      if (!success) {
+        return res.status(500).json({ error: "Errore durante l'aggiornamento dello stato nel database." });
+      }
       booking.status = status;
-      saveBookings();
       return res.json({ success: true, booking });
     }
     return res.status(400).json({ error: "Stato non valido." });
   });
 
   // API Route: Delete Booking (Admin only)
-  app.post("/api/admin/bookings/delete", checkAdminAuth, (req, res) => {
+  app.post("/api/admin/bookings/delete", checkAdminAuth, async (req, res) => {
     const { bookingId } = req.body;
-    const index = bookings.findIndex(b => b.id.toLowerCase() === bookingId.toLowerCase());
+    const allBookings = await getBookingsAsync();
+    const index = allBookings.findIndex(b => b.id.toLowerCase() === bookingId.toLowerCase());
     if (index === -1) {
       return res.status(404).json({ error: "Prenotazione non trovata." });
     }
-    bookings.splice(index, 1);
-    saveBookings();
+    const success = await deleteBookingAsync(bookingId);
+    if (!success) {
+      return res.status(500).json({ error: "Errore durante l'eliminazione della prenotazione dal database." });
+    }
     return res.json({ success: true, message: "Prenotazione eliminata correttamente." });
   });
 
@@ -453,7 +678,8 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
         return res.status(400).json({ error: "Il campo 'bookingId' è obbligatorio." });
       }
 
-      const booking = bookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
+      const allBookings = await getBookingsAsync();
+      const booking = allBookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
       if (!booking) {
         return res.status(404).json({ error: "Prenotazione non trovata." });
       }
