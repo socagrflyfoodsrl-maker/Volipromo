@@ -33,3 +33,14 @@ export interface ChatMessage {
   content: string;
   timestamp: Date;
 }
+
+export interface GalleryItem {
+  id: string | number;
+  src: string;
+  category: "campo" | "territorio" | "voli";
+  title: string;
+  description: string;
+  tag: string;
+  createdAt?: string;
+}
+

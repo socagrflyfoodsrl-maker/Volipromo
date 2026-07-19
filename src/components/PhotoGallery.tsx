@@ -1,19 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Camera, X, ChevronLeft, ChevronRight, ZoomIn, Compass } from "lucide-react";
+import { GalleryItem } from "../types";
 
-interface GalleryItem {
-  id: number;
-  src: string;
-  category: "campo" | "territorio" | "voli";
-  title: string;
-  description: string;
-  tag: string;
-}
-
-const GALLERY_IMAGES: GalleryItem[] = [
+const DEFAULT_GALLERY_IMAGES: GalleryItem[] = [
   {
-    id: 1,
+    id: "default-1",
     src: "/src/assets/images/puglia_ultralight_flight_1784312533388.jpg",
     category: "voli",
     title: "Volo in Ultraleggero",
@@ -21,7 +13,7 @@ const GALLERY_IMAGES: GalleryItem[] = [
     tag: "In Volo"
   },
   {
-    id: 2,
+    id: "default-2",
     src: "/src/assets/images/puglia_coastline_view_1784313223375.jpg",
     category: "territorio",
     title: "Costa Fasano - Ostuni",
@@ -29,7 +21,7 @@ const GALLERY_IMAGES: GalleryItem[] = [
     tag: "Panorama"
   },
   {
-    id: 3,
+    id: "default-3",
     src: "/src/assets/images/duneairpark_hangar_airfield_1784313238206.jpg",
     category: "campo",
     title: "Campo di Volo DuneAirPark",
@@ -37,7 +29,7 @@ const GALLERY_IMAGES: GalleryItem[] = [
     tag: "La Nostra Base"
   },
   {
-    id: 4,
+    id: "default-4",
     src: "/src/assets/images/ultralight_plane_puglia_1784313251640.jpg",
     category: "voli",
     title: "Ostuni dall'Alto",
@@ -45,7 +37,7 @@ const GALLERY_IMAGES: GalleryItem[] = [
     tag: "Azione"
   },
   {
-    id: 5,
+    id: "default-5",
     src: "/src/assets/images/valle_ditria_aerial_1784313263824.jpg",
     category: "territorio",
     title: "La Valle d'Itria",
@@ -57,10 +49,34 @@ const GALLERY_IMAGES: GalleryItem[] = [
 export default function PhotoGallery() {
   const [activeFilter, setActiveFilter] = useState<"all" | "campo" | "territorio" | "voli">("all");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [images, setImages] = useState<GalleryItem[]>(DEFAULT_GALLERY_IMAGES);
+
+  const fetchImages = async () => {
+    try {
+      const res = await fetch("/api/gallery");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.images && data.images.length > 0) {
+          setImages(data.images);
+        }
+      }
+    } catch (err) {
+      console.error("Errore nel caricamento delle immagini:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchImages();
+    const handleReload = () => {
+      fetchImages();
+    };
+    window.addEventListener("reload-gallery", handleReload);
+    return () => window.removeEventListener("reload-gallery", handleReload);
+  }, []);
 
   const filteredItems = activeFilter === "all" 
-    ? GALLERY_IMAGES 
-    : GALLERY_IMAGES.filter(item => item.category === activeFilter);
+    ? images 
+    : images.filter(item => item.category === activeFilter);
 
   // Handle keyboard events for lightbox
   useEffect(() => {
@@ -74,19 +90,19 @@ export default function PhotoGallery() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lightboxIndex]);
+  }, [lightboxIndex, images]);
 
   const handlePrev = () => {
     setLightboxIndex((prev) => {
       if (prev === null) return null;
-      return prev === 0 ? GALLERY_IMAGES.length - 1 : prev - 1;
+      return prev === 0 ? images.length - 1 : prev - 1;
     });
   };
 
   const handleNext = () => {
     setLightboxIndex((prev) => {
       if (prev === null) return null;
-      return prev === GALLERY_IMAGES.length - 1 ? 0 : prev + 1;
+      return prev === images.length - 1 ? 0 : prev + 1;
     });
   };
 
@@ -148,7 +164,7 @@ export default function PhotoGallery() {
           <AnimatePresence mode="popLayout">
             {filteredItems.map((item) => {
               // Get original index in global list for lightbox mapping
-              const globalIndex = GALLERY_IMAGES.findIndex(img => img.id === item.id);
+              const globalIndex = images.findIndex(img => img.id === item.id);
               
               return (
                 <motion.div
@@ -209,7 +225,7 @@ export default function PhotoGallery() {
 
       {/* Lightbox / Modal Overlay */}
       <AnimatePresence>
-        {lightboxIndex !== null && (
+        {lightboxIndex !== null && images[lightboxIndex] && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -220,9 +236,9 @@ export default function PhotoGallery() {
             {/* Lightbox Header */}
             <div className="flex justify-between items-center w-full max-w-7xl mx-auto text-white">
               <div className="flex items-center gap-2">
-                <Compass className="w-5 h-5 text-sky-400 animate-spin-slow" />
+                <Compass className="w-5 h-5 text-sky-400" />
                 <span className="text-xs font-mono font-bold tracking-wider text-slate-400">
-                  FOTO {lightboxIndex + 1} DI {GALLERY_IMAGES.length}
+                  FOTO {lightboxIndex + 1} DI {images.length}
                 </span>
               </div>
               
@@ -259,8 +275,8 @@ export default function PhotoGallery() {
                 className="relative max-h-[70vh] w-full flex items-center justify-center"
               >
                 <img
-                  src={GALLERY_IMAGES[lightboxIndex].src}
-                  alt={GALLERY_IMAGES[lightboxIndex].title}
+                  src={images[lightboxIndex].src}
+                  alt={images[lightboxIndex].title}
                   referrerPolicy="no-referrer"
                   className="max-h-[70vh] max-w-full object-contain rounded-xl shadow-2xl border border-white/10"
                 />
@@ -281,13 +297,13 @@ export default function PhotoGallery() {
             <div className="bg-slate-900/80 backdrop-blur-md text-white p-6 rounded-2xl border border-slate-800 max-w-3xl w-full mx-auto shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="space-y-1 text-left">
                 <span className="bg-sky-500/20 text-sky-300 text-[8px] uppercase font-black tracking-widest px-2 py-0.5 rounded">
-                  {GALLERY_IMAGES[lightboxIndex].tag}
+                  {images[lightboxIndex].tag}
                 </span>
                 <h4 className="text-lg font-display font-extrabold text-white mt-1">
-                  {GALLERY_IMAGES[lightboxIndex].title}
+                  {images[lightboxIndex].title}
                 </h4>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  {GALLERY_IMAGES[lightboxIndex].description}
+                  {images[lightboxIndex].description}
                 </p>
               </div>
 

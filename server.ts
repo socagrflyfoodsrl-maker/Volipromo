@@ -130,6 +130,18 @@ async function ensureTablesExist() {
     await sql`
       ALTER TABLE bookings ADD COLUMN IF NOT EXISTS instructor VARCHAR(100) DEFAULT 'Pilota';
     `;
+    // Create gallery_images table if it doesn't exist
+    await sql`
+      CREATE TABLE IF NOT EXISTS gallery_images (
+        id VARCHAR(50) PRIMARY KEY,
+        src TEXT NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        tag VARCHAR(100) NOT NULL,
+        created_at VARCHAR(100) NOT NULL
+      );
+    `;
     tablesCreated = true;
     console.log("Postgres tables checked/created successfully.");
   } catch (err) {
@@ -288,6 +300,121 @@ async function deleteBookingAsync(bookingId: string): Promise<boolean> {
       return true;
     } catch (err) {
       console.error("Errore nell'eliminazione della prenotazione da Postgres:", err);
+      return false;
+    }
+  }
+  return true;
+}
+
+const GALLERY_FILE = path.join(process.cwd(), "gallery_images.json");
+
+interface GalleryItem {
+  id: string;
+  src: string;
+  category: "campo" | "territorio" | "voli";
+  title: string;
+  description: string;
+  tag: string;
+  createdAt: string;
+}
+
+function loadGalleryImages(): GalleryItem[] {
+  try {
+    if (fs.existsSync(GALLERY_FILE)) {
+      const data = fs.readFileSync(GALLERY_FILE, "utf-8");
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error("Errore nel caricamento delle immagini della galleria:", err);
+  }
+  return [];
+}
+
+const customGalleryImages: GalleryItem[] = loadGalleryImages();
+
+function saveGalleryImages() {
+  try {
+    fs.writeFileSync(GALLERY_FILE, JSON.stringify(customGalleryImages, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Errore nel salvataggio delle immagini della galleria:", err);
+  }
+}
+
+async function getCustomGalleryImagesAsync(): Promise<GalleryItem[]> {
+  if (process.env.POSTGRES_URL) {
+    try {
+      await ensureTablesExist();
+      const { rows } = await sql`SELECT * FROM gallery_images ORDER BY created_at DESC;`;
+      return rows.map((row) => ({
+        id: row.id,
+        src: row.src,
+        category: row.category as "campo" | "territorio" | "voli",
+        title: row.title,
+        description: row.description,
+        tag: row.tag,
+        createdAt: row.created_at,
+      }));
+    } catch (err) {
+      console.error("Errore nel caricamento delle immagini da Postgres:", err);
+    }
+  }
+  return [...customGalleryImages].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+async function saveGalleryImageAsync(item: GalleryItem): Promise<boolean> {
+  const index = customGalleryImages.findIndex(img => img.id === item.id);
+  if (index !== -1) {
+    customGalleryImages[index] = item;
+  } else {
+    customGalleryImages.push(item);
+  }
+  saveGalleryImages();
+
+  if (process.env.POSTGRES_URL) {
+    try {
+      await ensureTablesExist();
+      await sql`
+        INSERT INTO gallery_images (
+          id, src, category, title, description, tag, created_at
+        ) VALUES (
+          ${item.id},
+          ${item.src},
+          ${item.category},
+          ${item.title},
+          ${item.description},
+          ${item.tag},
+          ${item.createdAt}
+        ) ON CONFLICT (id) DO UPDATE SET
+          src = EXCLUDED.src,
+          category = EXCLUDED.category,
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          tag = EXCLUDED.tag,
+          created_at = EXCLUDED.created_at;
+      `;
+      return true;
+    } catch (err) {
+      console.error("Errore nel salvataggio dell'immagine in Postgres:", err);
+      return false;
+    }
+  }
+  return true;
+}
+
+async function deleteGalleryImageAsync(id: string): Promise<boolean> {
+  const index = customGalleryImages.findIndex(img => img.id === id);
+  if (index !== -1) {
+    customGalleryImages.splice(index, 1);
+    saveGalleryImages();
+  }
+
+  if (process.env.POSTGRES_URL) {
+    try {
+      await ensureTablesExist();
+      await sql`DELETE FROM gallery_images WHERE id = ${id};`;
+      return true;
+    } catch (err) {
+      console.error("Errore nella cancellazione dell'immagine in Postgres:", err);
       return false;
     }
   }
@@ -653,6 +780,106 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
       return res.status(500).json({ error: "Errore durante l'eliminazione della prenotazione dal database." });
     }
     return res.json({ success: true, message: "Prenotazione eliminata correttamente." });
+  });
+
+  // API Route: Get ALL Gallery Images (Public)
+  app.get("/api/gallery", async (req, res) => {
+    try {
+      const customImages = await getCustomGalleryImagesAsync();
+      const defaultGalleryImages = [
+        {
+          id: "default-1",
+          src: "/src/assets/images/puglia_ultralight_flight_1784312533388.jpg",
+          category: "voli",
+          title: "Volo in Ultraleggero",
+          description: "Un'indimenticabile crociera ad alta quota nei cieli azzurri della Puglia costiera.",
+          tag: "In Volo"
+        },
+        {
+          id: "default-2",
+          src: "/src/assets/images/puglia_coastline_view_1784313223375.jpg",
+          category: "territorio",
+          title: "Costa Fasano - Ostuni",
+          description: "La suggestiva piana degli ulivi secolari monumentali incontra l'azzurro intenso del Mare Adriatico.",
+          tag: "Panorama"
+        },
+        {
+          id: "default-3",
+          src: "/src/assets/images/duneairpark_hangar_airfield_1784313238206.jpg",
+          category: "campo",
+          title: "Campo di Volo DuneAirPark",
+          description: "La nostra pista in erba fronte mare e l'hangar che ospita la flotta di ultraleggeri moderni.",
+          tag: "La Nostra Base"
+        },
+        {
+          id: "default-4",
+          src: "/src/assets/images/ultralight_plane_puglia_1784313251640.jpg",
+          category: "voli",
+          title: "Ostuni dall'Alto",
+          description: "La splendida Città Bianca arroccata sui colli di Puglia che risplende di calce candida.",
+          tag: "Azione"
+        },
+        {
+          id: "default-5",
+          src: "/src/assets/images/valle_ditria_aerial_1784313263824.jpg",
+          category: "territorio",
+          title: "La Valle d'Itria",
+          description: "Una splendida vista aerea dei leggendari coni dei Trulli circondati da muretti a secco e vigneti.",
+          tag: "Territorio"
+        }
+      ];
+      // Dynamic photos first, then default photos
+      return res.json({ images: [...customImages, ...defaultGalleryImages] });
+    } catch (err) {
+      console.error("Errore nel caricamento della galleria:", err);
+      return res.status(500).json({ error: "Errore interno del server durante il caricamento della galleria." });
+    }
+  });
+
+  // API Route: Add Gallery Image (Admin only)
+  app.post("/api/admin/gallery", checkAdminAuth, async (req, res) => {
+    try {
+      const { src, category, title, description, tag } = req.body;
+      if (!src || !category || !title || !description || !tag) {
+        return res.status(400).json({ error: "Tutti i campi (src, category, title, description, tag) sono obbligatori." });
+      }
+      const id = "IMG-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+      const newItem: GalleryItem = {
+        id,
+        src,
+        category,
+        title,
+        description,
+        tag,
+        createdAt: new Date().toISOString()
+      };
+      const success = await saveGalleryImageAsync(newItem);
+      if (!success) {
+        return res.status(500).json({ error: "Impossibile salvare l'immagine nel database." });
+      }
+      return res.status(201).json({ success: true, item: newItem });
+    } catch (err: any) {
+      console.error("Errore nell'inserimento dell'immagine:", err);
+      return res.status(500).json({ error: "Errore interno del server durante il salvataggio." });
+    }
+  });
+
+  // API Route: Delete Gallery Image (Admin only)
+  app.delete("/api/admin/gallery/:id", checkAdminAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({ error: "ID dell'immagine mancante." });
+      }
+      const success = await deleteGalleryImageAsync(id);
+      if (!success) {
+        return res.status(500).json({ error: "Errore durante l'eliminazione dell'immagine nel database." });
+      }
+      return res.json({ success: true, message: "Immagine eliminata con successo!" });
+    } catch (err: any) {
+      console.error("Errore nell'eliminazione dell'immagine:", err);
+      return res.status(500).json({ error: "Errore interno del server durante l'eliminazione." });
+    }
   });
 
 

@@ -22,7 +22,12 @@ import {
   Phone, 
   AlertCircle,
   Clock,
-  Send
+  Send,
+  Camera,
+  Upload,
+  Plus,
+  Image as ImageIcon,
+  X
 } from "lucide-react";
 
 export default function AdminPanel() {
@@ -31,7 +36,21 @@ export default function AdminPanel() {
   const [error, setError] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"bookings" | "email" | "stats" | "settings">("bookings");
+  const [activeTab, setActiveTab] = useState<"bookings" | "email" | "stats" | "settings" | "gallery">("bookings");
+
+  // State for Gallery Management
+  const [galleryImages, setGalleryImages] = useState<any[]>([]);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [galleryError, setGalleryError] = useState("");
+  const [gallerySuccess, setGallerySuccess] = useState("");
+  
+  // New Photo fields
+  const [photoSrc, setPhotoSrc] = useState("");
+  const [photoCategory, setPhotoCategory] = useState<"campo" | "territorio" | "voli">("voli");
+  const [photoTitle, setPhotoTitle] = useState("");
+  const [photoDescription, setPhotoDescription] = useState("");
+  const [photoTag, setPhotoTag] = useState("In Volo");
+  const [submittingPhoto, setSubmittingPhoto] = useState(false);
   
   // State for password change
   const [newPassword, setNewPassword] = useState("");
@@ -290,6 +309,145 @@ export default function AdminPanel() {
     return { total, revenue, avgWeight, popularExp };
   })();
 
+  const fetchGalleryImages = async () => {
+    setGalleryLoading(true);
+    setGalleryError("");
+    try {
+      const response = await fetch("/api/gallery");
+      if (response.ok) {
+        const data = await response.json();
+        setGalleryImages(data.images || []);
+      } else {
+        setGalleryError("Impossibile caricare le foto della galleria.");
+      }
+    } catch (err) {
+      setGalleryError("Errore di connessione durante il caricamento della galleria.");
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
+
+  const handleAddPhoto = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGalleryError("");
+    setGallerySuccess("");
+    
+    if (!photoSrc.trim()) {
+      setGalleryError("Specificare un'immagine (tramite file o URL).");
+      return;
+    }
+    if (!photoTitle.trim()) {
+      setGalleryError("Inserire un titolo per l'immagine.");
+      return;
+    }
+    if (!photoDescription.trim()) {
+      setGalleryError("Inserire una breve descrizione per l'immagine.");
+      return;
+    }
+    if (!photoTag.trim()) {
+      setGalleryError("Inserire una targhetta per l'immagine (es. 'In Volo').");
+      return;
+    }
+
+    setSubmittingPhoto(true);
+    try {
+      const response = await fetch("/api/admin/gallery", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": password
+        },
+        body: JSON.stringify({
+          src: photoSrc,
+          category: photoCategory,
+          title: photoTitle,
+          description: photoDescription,
+          tag: photoTag
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setGallerySuccess("Foto inserita con successo nella galleria!");
+        setPhotoSrc("");
+        setPhotoTitle("");
+        setPhotoDescription("");
+        setPhotoTag("In Volo");
+        fetchGalleryImages();
+        
+        // Dispatch event to reload public gallery if active on page
+        window.dispatchEvent(new Event("reload-gallery"));
+      } else {
+        setGalleryError(data.error || "Errore nel salvataggio dell'immagine.");
+      }
+    } catch (err) {
+      setGalleryError("Errore di connessione al server.");
+      console.error(err);
+    } finally {
+      setSubmittingPhoto(false);
+    }
+  };
+
+  const handleDeletePhoto = async (id: string) => {
+    if (String(id).startsWith("default-")) {
+      alert("Le foto di base predefinite non possono essere rimosse.");
+      return;
+    }
+    if (!window.confirm("Sei sicuro di voler rimuovere questa foto dalla galleria?")) return;
+
+    setGalleryLoading(true);
+    try {
+      const response = await fetch(`/api/admin/gallery/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": password
+        }
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setGalleryImages(prev => prev.filter(img => img.id !== id));
+        window.dispatchEvent(new Event("reload-gallery"));
+      } else {
+        alert(data.error || "Impossibile rimuovere la foto.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Errore di connessione.");
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setGalleryError("Il file immagine è troppo grande (max 5MB).");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") {
+        setPhotoSrc(reader.result);
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        const formattedTitle = cleanName.charAt(0).toUpperCase() + cleanName.slice(1);
+        if (!photoTitle) setPhotoTitle(formattedTitle);
+      }
+    };
+    reader.onerror = () => {
+      setGalleryError("Errore durante la lettura del file.");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  useEffect(() => {
+    if (isAuthorized && activeTab === "gallery") {
+      fetchGalleryImages();
+    }
+  }, [isAuthorized, activeTab]);
+
   if (!isAuthorized) {
     return (
       <div className="max-w-md mx-auto my-12 bg-white rounded-3xl border-2 border-slate-200 shadow-xl overflow-hidden">
@@ -358,7 +516,7 @@ export default function AdminPanel() {
 
         <div className="flex items-center gap-3 w-full sm:w-auto">
           {/* Tabs switch */}
-          <div className="flex bg-slate-850 p-1 rounded-xl border border-slate-800">
+          <div className="flex flex-wrap gap-1 bg-slate-850 p-1 rounded-xl border border-slate-800">
             <button
               onClick={() => setActiveTab("bookings")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
@@ -374,6 +532,14 @@ export default function AdminPanel() {
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" /> Statistiche
+            </button>
+            <button
+              onClick={() => setActiveTab("gallery")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                activeTab === "gallery" ? "bg-sky-600 text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Camera className="w-3.5 h-3.5" /> Galleria Foto
             </button>
             <button
               onClick={() => setActiveTab("email")}
@@ -635,6 +801,276 @@ export default function AdminPanel() {
             </div>
             
             <EmailAdminPanel />
+          </div>
+        )}
+
+        {/* TAB: GALLERY MANAGEMENT */}
+        {activeTab === "gallery" && (
+          <div className="space-y-8 animate-fadeIn">
+            <div>
+              <h3 className="text-lg font-display font-bold text-slate-800">Gestione Galleria Fotografica</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                La "Galleria" pubblica del DuneAirPark si aggiornerà in tempo reale. Carica nuovi scatti o rimuovi le foto esistenti.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Form to Add Photo */}
+              <div className="lg:col-span-5 bg-slate-50 border border-slate-200 p-6 rounded-2xl space-y-5 h-fit">
+                <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 pb-3 border-b border-slate-200 uppercase tracking-wider">
+                  <Plus className="w-4 h-4 text-sky-600" />
+                  Inserisci Nuova Foto
+                </h4>
+
+                {galleryError && (
+                  <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-3 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{galleryError}</span>
+                  </div>
+                )}
+
+                {gallerySuccess && (
+                  <div className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl p-3 text-xs flex items-center gap-2">
+                    <Check className="w-4 h-4 shrink-0" />
+                    <span>{gallerySuccess}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleAddPhoto} className="space-y-4">
+                  {/* File Upload Zone */}
+                  <div>
+                    <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">
+                      Seleziona File Immagine (oppure inserisci URL)
+                    </label>
+                    
+                    <div className="flex flex-col gap-3">
+                      {photoSrc ? (
+                        <div className="relative rounded-xl overflow-hidden border border-slate-300 aspect-video bg-slate-100 group">
+                          <img src={photoSrc} alt="Preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setPhotoSrc("")}
+                            className="absolute top-2 right-2 bg-red-600 text-white p-1 rounded-full text-xs shadow-md hover:bg-red-500"
+                            title="Rimuovi immagine"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label 
+                          htmlFor="file-uploader" 
+                          className="border-2 border-dashed border-slate-300 hover:border-sky-500 bg-white rounded-xl p-6 text-center cursor-pointer hover:bg-sky-50/10 transition-all flex flex-col items-center justify-center gap-2 animate-pulse"
+                        >
+                          <Upload className="w-8 h-8 text-slate-400 group-hover:text-sky-600" />
+                          <span className="text-xs font-bold text-slate-700">Carica file dal dispositivo</span>
+                          <span className="text-[10px] text-slate-450">PNG, JPG, WEBP fino a 5MB</span>
+                        </label>
+                      )}
+                      <input 
+                        type="file" 
+                        id="file-uploader" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleFileChange} 
+                      />
+
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <ImageIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Oppure incolla l'URL di un'immagine web..."
+                          value={photoSrc.startsWith("data:") ? "" : photoSrc}
+                          onChange={(e) => setPhotoSrc(e.target.value)}
+                          className="w-full border-2 border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-medium text-slate-700 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pre-filled samples helper */}
+                  {!photoSrc && (
+                    <div className="text-left bg-sky-50/50 p-2.5 rounded-xl border border-sky-100">
+                      <span className="text-[9px] font-black uppercase text-sky-700 tracking-wider block mb-1">
+                        💡 Test rapido senza foto?
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { label: "Cabina Pilotaggio", src: "https://images.unsplash.com/photo-1540962351504-03099e0a754b?auto=format&fit=crop&w=800&q=80", tag: "Pilota", title: "Quadro Strumenti", desc: "La sofisticata plancia digitale del nostro ultraleggero di ultima generazione." },
+                          { label: "Tramonto in Volo", src: "https://images.unsplash.com/photo-1506012787146-f92b2d7d6d96?auto=format&fit=crop&w=800&q=80", tag: "Cielo", title: "Atmosfera d'Alta Quota", desc: "I caldi colori dorati del tramonto che avvolgono l'ala in volo sopra il mare." },
+                          { label: "Pista Decollo", src: "https://images.unsplash.com/photo-1473862170180-84427c485ade?auto=format&fit=crop&w=800&q=80", tag: "Pista", title: "La Nostra Via di Volo", desc: "La suggestiva prospettiva della nostra pista verde rivolta verso la piana monumentale." }
+                        ].map((sample, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setPhotoSrc(sample.src);
+                              setPhotoTag(sample.tag);
+                              setPhotoTitle(sample.title);
+                              setPhotoDescription(sample.desc);
+                            }}
+                            className="bg-white hover:bg-sky-100 border border-sky-200 text-[10px] font-semibold px-2 py-1 rounded-lg text-sky-800 transition-colors"
+                          >
+                            {sample.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Title & Tag */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">
+                        Titolo Foto
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Es. Sguardo sul Faro"
+                        value={photoTitle}
+                        onChange={(e) => setPhotoTitle(e.target.value)}
+                        className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">
+                        Etichetta / Tag
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Es. In Volo, Novità"
+                        value={photoTag}
+                        onChange={(e) => setPhotoTag(e.target.value)}
+                        className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Category & Description */}
+                  <div>
+                    <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">
+                      Categoria di visualizzazione
+                    </label>
+                    <select
+                      value={photoCategory}
+                      onChange={(e: any) => setPhotoCategory(e.target.value)}
+                      className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-all"
+                    >
+                      <option value="voli">I Voli in Azione (voli)</option>
+                      <option value="campo">Il Campo di Volo (campo)</option>
+                      <option value="territorio">Il Territorio (territorio)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-widest">
+                      Descrizione Immagine
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Una descrizione suggestiva che racconta lo scatto..."
+                      value={photoDescription}
+                      onChange={(e) => setPhotoDescription(e.target.value)}
+                      className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-700 transition-all leading-relaxed resize-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={submittingPhoto}
+                    className="w-full bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-55"
+                  >
+                    {submittingPhoto ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                    Aggiungi alla Galleria
+                  </button>
+                </form>
+              </div>
+
+              {/* Photos List Grid */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                  <h4 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                    Foto Attive ({galleryImages.length})
+                  </h4>
+                  <button
+                    onClick={fetchGalleryImages}
+                    disabled={galleryLoading}
+                    className="p-1 text-slate-450 hover:text-sky-600 transition-colors disabled:opacity-55"
+                    title="Aggiorna galleria"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${galleryLoading ? "animate-spin" : ""}`} />
+                  </button>
+                </div>
+
+                {galleryLoading && galleryImages.length === 0 ? (
+                  <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-150">
+                    <RefreshCw className="w-8 h-8 text-sky-600 animate-spin mx-auto mb-3" />
+                    <p className="text-xs text-slate-500">Scaricamento catalogo immagini in corso...</p>
+                  </div>
+                ) : galleryImages.length === 0 ? (
+                  <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-150">
+                    <ImageIcon className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+                    <p className="text-xs text-slate-500 font-bold">Nessuna foto presente</p>
+                    <p className="text-[10px] text-slate-450 mt-1">Carica una foto per iniziare.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[580px] overflow-y-auto pr-1">
+                    {galleryImages.map((img) => {
+                      const isDefault = String(img.id).startsWith("default-");
+                      return (
+                        <div 
+                          key={img.id}
+                          className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col justify-between group hover:border-sky-300 transition-all"
+                        >
+                          <div className="relative aspect-video bg-slate-100">
+                            <img src={img.src} alt={img.title} className="w-full h-full object-cover" />
+                            <span className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-sm text-white text-[8px] uppercase font-bold tracking-wider px-2 py-0.5 rounded">
+                              {img.tag}
+                            </span>
+                            <span className="absolute top-2 right-2 bg-sky-500 text-white text-[8px] uppercase font-bold tracking-wider px-2 py-0.5 rounded">
+                              {img.category}
+                            </span>
+                          </div>
+                          
+                          <div className="p-4 flex-grow flex flex-col justify-between">
+                            <div className="space-y-1">
+                              <h5 className="text-xs font-black text-slate-800 line-clamp-1">{img.title}</h5>
+                              <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2">{img.description}</p>
+                            </div>
+
+                            <div className="pt-3 mt-3 border-t border-slate-100 flex justify-between items-center">
+                              <span className="text-[9px] text-slate-400 font-mono">
+                                ID: {img.id}
+                              </span>
+                              
+                              {isDefault ? (
+                                <span className="text-[9px] text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded">
+                                  Predefinita
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePhoto(img.id)}
+                                  className="text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
+                                  title="Elimina foto"
+                                >
+                                  <Trash2 className="w-3 h-3" /> Elimina
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
