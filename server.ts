@@ -198,6 +198,7 @@ async function ensureTablesExist() {
     console.log("Postgres tables checked/created successfully.");
   } catch (err: any) {
     console.warn("Informazioni: Database Postgres non disponibile o non raggiungibile. Uso local fallback. Errore:", err.message);
+    usePostgres = false;
   }
 }
 
@@ -633,6 +634,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use("/src/assets", express.static(path.join(process.cwd(), "src/assets")));
 
 // Define all routes synchronously to prevent race conditions or 404s on serverless platforms (like Vercel)
 
