@@ -389,10 +389,6 @@ export default function AdminPanel() {
   };
 
   const handleDeletePhoto = async (id: string) => {
-    if (String(id).startsWith("default-")) {
-      alert("Le foto di base predefinite non possono essere rimosse.");
-      return;
-    }
     if (!window.confirm("Sei sicuro di voler rimuovere questa foto dalla galleria?")) return;
 
     setGalleryLoading(true);
@@ -1049,11 +1045,12 @@ export default function AdminPanel() {
                                 ID: {img.id}
                               </span>
                               
-                              {isDefault ? (
-                                <span className="text-[9px] text-slate-400 font-bold bg-slate-100 px-2 py-0.5 rounded">
-                                  Predefinita
-                                </span>
-                              ) : (
+                              <div className="flex items-center gap-2">
+                                {isDefault && (
+                                  <span className="text-[9px] text-slate-450 font-bold bg-slate-100 px-2 py-0.5 rounded">
+                                    Predefinita
+                                  </span>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => handleDeletePhoto(img.id)}
@@ -1062,7 +1059,7 @@ export default function AdminPanel() {
                                 >
                                   <Trash2 className="w-3 h-3" /> Elimina
                                 </button>
-                              )}
+                              </div>
                             </div>
                           </div>
                         </div>

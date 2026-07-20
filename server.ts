@@ -363,6 +363,66 @@ async function deleteBookingAsync(bookingId: string): Promise<boolean> {
 }
 
 const GALLERY_FILE = path.join(process.cwd(), "gallery_images.json");
+const DELETED_DEFAULTS_FILE = path.join(process.cwd(), "deleted_defaults.json");
+
+function loadDeletedDefaults(): string[] {
+  try {
+    if (fs.existsSync(DELETED_DEFAULTS_FILE)) {
+      const data = fs.readFileSync(DELETED_DEFAULTS_FILE, "utf-8");
+      return JSON.parse(data);
+    }
+  } catch (err: any) {
+    // quiet fallback
+  }
+  return [];
+}
+
+const deletedDefaults: string[] = loadDeletedDefaults();
+
+function saveDeletedDefaults() {
+  try {
+    fs.writeFileSync(DELETED_DEFAULTS_FILE, JSON.stringify(deletedDefaults, null, 2), "utf-8");
+  } catch (err: any) {
+    // quiet fallback
+  }
+}
+
+async function getDeletedDefaultsAsync(): Promise<string[]> {
+  if (usePostgres) {
+    try {
+      await ensureTablesExist();
+      const { rows } = await sql`SELECT value FROM admin_config WHERE key = 'deleted_default_images';`;
+      if (rows.length > 0) {
+        return JSON.parse(rows[0].value);
+      }
+    } catch (err: any) {
+      // fallback
+    }
+  }
+  return deletedDefaults;
+}
+
+async function saveDeletedDefaultsAsync(ids: string[]): Promise<boolean> {
+  deletedDefaults.length = 0;
+  deletedDefaults.push(...ids);
+  saveDeletedDefaults();
+
+  if (usePostgres) {
+    try {
+      await ensureTablesExist();
+      const valueStr = JSON.stringify(ids);
+      await sql`
+        INSERT INTO admin_config (key, value)
+        VALUES ('deleted_default_images', ${valueStr})
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+      `;
+      return true;
+    } catch (err: any) {
+      return false;
+    }
+  }
+  return true;
+}
 
 interface GalleryItem {
   id: string;
@@ -461,6 +521,19 @@ async function saveGalleryImageAsync(item: GalleryItem): Promise<boolean> {
 }
 
 async function deleteGalleryImageAsync(id: string): Promise<boolean> {
+  if (id.startsWith("default-")) {
+    try {
+      const deletedList = await getDeletedDefaultsAsync();
+      if (!deletedList.includes(id)) {
+        deletedList.push(id);
+        await saveDeletedDefaultsAsync(deletedList);
+      }
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
   const index = customGalleryImages.findIndex(img => img.id === id);
   if (index !== -1) {
     customGalleryImages.splice(index, 1);
@@ -890,8 +963,10 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
           tag: "Territorio"
         }
       ];
+      const deletedList = await getDeletedDefaultsAsync();
+      const filteredDefaults = defaultGalleryImages.filter(img => !deletedList.includes(img.id));
       // Dynamic photos first, then default photos
-      return res.json({ images: [...customImages, ...defaultGalleryImages] });
+      return res.json({ images: [...customImages, ...filteredDefaults] });
     } catch (err) {
       console.error("Errore nel caricamento della galleria:", err);
       return res.status(500).json({ error: "Errore interno del server durante il caricamento della galleria." });
