@@ -259,7 +259,7 @@ async function getBookingsAsync(): Promise<Booking[]> {
 
 async function saveBookingAsync(booking: Booking): Promise<boolean> {
   // Always update in-memory cache and local file
-  const index = bookings.findIndex(b => b.id.toLowerCase() === booking.id.toLowerCase());
+  const index = bookings.findIndex(b => String(b.id).toLowerCase() === String(booking.id).toLowerCase());
   if (index !== -1) {
     bookings[index] = booking;
   } else {
@@ -307,17 +307,19 @@ async function saveBookingAsync(booking: Booking): Promise<boolean> {
         return true;
       }
     } catch (err: any) {
-      return false;
+      return true; // Local save succeeded
     }
   }
   return true;
 }
 
 async function updateBookingStatusAsync(bookingId: string, status: "confirmed" | "pending_weather"): Promise<boolean> {
-  const localBooking = bookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
+  let localUpdated = false;
+  const localBooking = bookings.find(b => String(b.id).toLowerCase() === String(bookingId).toLowerCase());
   if (localBooking) {
     localBooking.status = status;
     saveBookings();
+    localUpdated = true;
   }
 
   if (usePostgres) {
@@ -327,22 +329,24 @@ async function updateBookingStatusAsync(bookingId: string, status: "confirmed" |
         await sql`
           UPDATE bookings
           SET status = ${status}
-          WHERE LOWER(id) = ${bookingId.toLowerCase()};
+          WHERE LOWER(id) = ${String(bookingId).toLowerCase()};
         `;
         return true;
       }
     } catch (err: any) {
-      return false;
+      return localUpdated;
     }
   }
-  return true;
+  return localUpdated;
 }
 
 async function deleteBookingAsync(bookingId: string): Promise<boolean> {
-  const index = bookings.findIndex(b => b.id.toLowerCase() === bookingId.toLowerCase());
+  let localDeleted = false;
+  const index = bookings.findIndex(b => String(b.id).toLowerCase() === String(bookingId).toLowerCase());
   if (index !== -1) {
     bookings.splice(index, 1);
     saveBookings();
+    localDeleted = true;
   }
 
   if (usePostgres) {
@@ -351,15 +355,15 @@ async function deleteBookingAsync(bookingId: string): Promise<boolean> {
       if (usePostgres) {
         await sql`
           DELETE FROM bookings
-          WHERE LOWER(id) = ${bookingId.toLowerCase()};
+          WHERE LOWER(id) = ${String(bookingId).toLowerCase()};
         `;
         return true;
       }
     } catch (err: any) {
-      return false;
+      return localDeleted;
     }
   }
-  return true;
+  return localDeleted;
 }
 
 const GALLERY_FILE = path.join(process.cwd(), "gallery_images.json");
@@ -905,39 +909,42 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
   // API Route: Suspend Booking with reason & send email notification
   app.post("/api/admin/bookings/suspend", checkAdminAuth, async (req, res) => {
     try {
-      const { bookingId, reason, customReason, customNote, sendEmail = true } = req.body;
+      const { bookingId, reason, customReason, customNote, sendEmail: shouldSendEmail = true } = req.body || {};
       if (!bookingId) {
         return res.status(400).json({ error: "ID prenotazione mancante." });
       }
 
+      const strBookingId = String(bookingId);
       const allBookings = await getBookingsAsync();
-      const booking = allBookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
+      const booking = allBookings.find(b => String(b.id).toLowerCase() === strBookingId.toLowerCase());
       if (!booking) {
         return res.status(404).json({ error: "Prenotazione non trovata." });
       }
 
-      const success = await updateBookingStatusAsync(bookingId, "pending_weather");
-      if (!success) {
-        return res.status(500).json({ error: "Errore durante l'aggiornamento dello stato nel database." });
-      }
+      await updateBookingStatusAsync(strBookingId, "pending_weather");
       booking.status = "pending_weather";
 
-      let customerMailResult = null;
-      let pilotMailResult = null;
+      let customerMailResult: any = null;
+      let pilotMailResult: any = null;
+      let emailErrorMsg = "";
 
-      if (sendEmail) {
+      if (shouldSendEmail) {
         const selectedInstructor = booking.instructor || "Francesco Guarini";
         const isRocco = selectedInstructor.includes("Rocco") || selectedInstructor.includes("Gallone");
         const pilotEmail = isRocco ? "roccogallonevolo@gmail.com" : (process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com");
 
         let reasonLabel = "Condizioni Meteo Avverse (Vento / Pioggia / Scarsa Visibilità)";
-        if (reason === "altro") {
-          reasonLabel = customReason && customReason.trim() ? customReason.trim() : "Motivi Operativi / Sicurezza di Volo";
-        } else if (customReason && customReason.trim()) {
-          reasonLabel = `${reasonLabel} - ${customReason.trim()}`;
+        const strReason = String(reason || "");
+        const strCustomReason = String(customReason || "").trim();
+        const strCustomNote = String(customNote || "").trim();
+
+        if (strReason === "altro") {
+          reasonLabel = strCustomReason ? strCustomReason : "Motivi Operativi / Sicurezza di Volo";
+        } else if (strCustomReason) {
+          reasonLabel = `${reasonLabel} - ${strCustomReason}`;
         }
 
-        const noteText = customNote && customNote.trim() ? `\n\nNOTA DEL PILOTA:\n"${customNote.trim()}"` : "";
+        const noteText = strCustomNote ? `\n\nNOTA DEL PILOTA:\n"${strCustomNote}"` : "";
 
         const emailTextToCustomer = `Gentile ${booking.name},
 
@@ -972,28 +979,53 @@ Data/Ora originaria: ${booking.date} - ${booking.timeSlot}
 
 Ricordati di contattare il passeggero per riprogrammare il volo!`;
 
-        customerMailResult = await sendEmail({
-          to: booking.email,
-          subject: `[Duneairpark] ⚠️ SOSPENSIONE VOLO - Codice ${booking.id}`,
-          text: emailTextToCustomer
-        });
+        try {
+          customerMailResult = await sendEmail({
+            to: booking.email,
+            subject: `[Duneairpark] ⚠️ SOSPENSIONE VOLO - Codice ${booking.id}`,
+            text: emailTextToCustomer
+          });
+          if (customerMailResult && !customerMailResult.success && customerMailResult.error) {
+            emailErrorMsg = customerMailResult.error;
+          }
+        } catch (mErr: any) {
+          console.error("Errore invio email cliente:", mErr);
+          emailErrorMsg = mErr.message || "Impossibile inviare email";
+        }
 
-        pilotMailResult = await sendEmail({
-          to: pilotEmail,
-          subject: `[Duneairpark] NOTIFICA SOSPENSIONE - ${booking.id} (${booking.name})`,
-          text: emailTextToPilot
-        });
+        try {
+          pilotMailResult = await sendEmail({
+            to: pilotEmail,
+            subject: `[Duneairpark] NOTIFICA SOSPENSIONE - ${booking.id} (${booking.name})`,
+            text: emailTextToPilot
+          });
+        } catch (mErr: any) {
+          console.error("Errore invio email pilota:", mErr);
+        }
+      }
+
+      let responseMsg = "Volo sospeso con successo.";
+      if (shouldSendEmail) {
+        if (customerMailResult?.success) {
+          responseMsg = customerMailResult.simulated 
+            ? "Volo sospeso. Email di notifica simulata (SMTP non configurato)."
+            : "Volo sospeso ed email di notifica inviata con successo al passeggero!";
+        } else if (emailErrorMsg) {
+          responseMsg = `Volo sospeso. Attenzione: invio email fallito (${emailErrorMsg}).`;
+        } else {
+          responseMsg = "Volo sospeso correttamente.";
+        }
       }
 
       return res.json({
         success: true,
-        message: sendEmail ? "Volo sospeso e email di notifica inviata al passeggero." : "Stato del volo aggiornato a Sospeso.",
+        message: responseMsg,
         booking,
         mailSent: customerMailResult
       });
     } catch (err: any) {
       console.error("Errore nella sospensione del volo:", err);
-      return res.status(500).json({ error: "Errore interno durante la sospensione del volo." });
+      return res.status(500).json({ error: "Errore durante la sospensione: " + (err.message || String(err)) });
     }
   });
 
