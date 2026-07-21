@@ -63,6 +63,66 @@ export default function AdminPanel() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "confirmed" | "pending_weather">("all");
 
+  // State for Flight Suspension Modal
+  const [suspendModalBooking, setSuspendModalBooking] = useState<Booking | null>(null);
+  const [suspendReasonType, setSuspendReasonType] = useState<"meteo" | "altro">("meteo");
+  const [suspendCustomReason, setSuspendCustomReason] = useState("");
+  const [suspendCustomNote, setSuspendCustomNote] = useState("");
+  const [suspendSendEmail, setSuspendSendEmail] = useState(true);
+  const [suspendingLoading, setSuspendingLoading] = useState(false);
+  const [suspendSuccessMsg, setSuspendSuccessMsg] = useState("");
+
+  const openSuspendModal = (b: Booking) => {
+    setSuspendModalBooking(b);
+    setSuspendReasonType("meteo");
+    setSuspendCustomReason("");
+    setSuspendCustomNote("");
+    setSuspendSendEmail(true);
+    setSuspendSuccessMsg("");
+  };
+
+  const handleConfirmSuspension = async () => {
+    if (!suspendModalBooking) return;
+    setSuspendingLoading(true);
+    setSuspendSuccessMsg("");
+
+    try {
+      const response = await fetch("/api/admin/bookings/suspend", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": password
+        },
+        body: JSON.stringify({
+          bookingId: suspendModalBooking.id,
+          reason: suspendReasonType,
+          customReason: suspendCustomReason,
+          customNote: suspendCustomNote,
+          sendEmail: suspendSendEmail
+        })
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setBookings(prev =>
+          prev.map(b => b.id === suspendModalBooking.id ? { ...b, status: "pending_weather" } : b)
+        );
+        setSuspendSuccessMsg(data.message || "Sospensione registrata ed email inviata con successo!");
+        setTimeout(() => {
+          setSuspendModalBooking(null);
+          setSuspendSuccessMsg("");
+        }, 1800);
+      } else {
+        alert(data.error || "Errore durante la sospensione del volo.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Errore di connessione durante la sospensione del volo.");
+    } finally {
+      setSuspendingLoading(false);
+    }
+  };
+
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError("");
@@ -455,6 +515,9 @@ export default function AdminPanel() {
           <p className="text-xs text-slate-400 mt-1">
             Immetti la password amministratore di DuneAirPark
           </p>
+          <div className="mt-3 inline-block bg-sky-950/80 border border-sky-500/30 text-sky-300 px-3 py-1 rounded-full text-[11px] font-mono font-medium">
+            🔑 Password predefinita: <strong className="text-white font-bold">dune2026</strong>
+          </div>
         </div>
 
         <form onSubmit={handleLoginSubmit} className="p-6 space-y-4">
@@ -679,40 +742,57 @@ export default function AdminPanel() {
                           )}
                         </td>
                         <td className="py-4 px-5 text-right">
-                          <div className="flex gap-1.5 justify-end">
-                            {/* Toggle safety status */}
-                            <button
-                              onClick={() => handleUpdateStatus(b.id, b.status)}
-                              className={`p-1.5 rounded-lg border text-[10px] font-bold transition-all flex items-center gap-0.5 ${
-                                b.status === "confirmed"
-                                  ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
-                                  : "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                              }`}
-                              title={b.status === "confirmed" ? "Sospendi per Meteo" : "Conferma Volo"}
-                            >
-                              {b.status === "confirmed" ? <CloudRain className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
-                              <span className="hidden lg:inline">{b.status === "confirmed" ? "Sospendi" : "Conferma"}</span>
-                            </button>
+                          <div className="flex gap-1.5 justify-end flex-wrap">
+                            {/* Suspend or Confirm status action */}
+                            {b.status === "confirmed" ? (
+                              <button
+                                onClick={() => openSuspendModal(b)}
+                                className="p-1.5 rounded-lg border text-[10px] font-bold transition-all flex items-center gap-1 bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100 cursor-pointer"
+                                title="Sospendi volo per meteo o altro e invia notifica"
+                              >
+                                <CloudRain className="w-3.5 h-3.5 text-amber-600" />
+                                <span>Sospendi</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleUpdateStatus(b.id, b.status)}
+                                  className="p-1.5 rounded-lg border text-[10px] font-bold transition-all flex items-center gap-1 bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100 cursor-pointer"
+                                  title="Ripristina volo confermato"
+                                >
+                                  <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>Conferma</span>
+                                </button>
+                                <button
+                                  onClick={() => openSuspendModal(b)}
+                                  className="p-1.5 rounded-lg border text-[10px] font-bold transition-all flex items-center gap-1 bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 cursor-pointer"
+                                  title="Reinvia/Modifica email di notifica sospensione"
+                                >
+                                  <Send className="w-3.5 h-3.5 text-amber-700" />
+                                  <span>Email Sospensione</span>
+                                </button>
+                              </>
+                            )}
 
-                            {/* Resend email */}
+                            {/* Resend regular confirmation email */}
                             <button
                               disabled={resendingId === b.id}
                               onClick={() => handleResendEmail(b.id)}
-                              className={`p-1.5 rounded-lg border text-[10px] font-bold transition-all flex items-center gap-0.5 ${
+                              className={`p-1.5 rounded-lg border text-[10px] font-bold transition-all flex items-center gap-0.5 cursor-pointer ${
                                 resendStatus[b.id]
                                   ? "bg-slate-50 text-slate-800 border-slate-350"
                                   : "bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100"
                               }`}
-                              title="Reinvia email di riepilogo"
+                              title="Reinvia email di conferma regolare"
                             >
-                              <Send className="w-3.5 h-3.5" />
-                              <span className="hidden lg:inline">{resendStatus[b.id] || "Email"}</span>
+                              <Mail className="w-3.5 h-3.5" />
+                              <span className="hidden lg:inline">{resendStatus[b.id] || "Email Conferma"}</span>
                             </button>
 
                             {/* Delete */}
                             <button
                               onClick={() => handleDeleteBooking(b.id)}
-                              className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-all"
+                              className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg transition-all cursor-pointer"
                               title="Elimina prenotazione"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1137,6 +1217,149 @@ export default function AdminPanel() {
           </div>
         )}
       </div>
+
+      {/* MODAL SOSPENSIONE VOLO & NOTIFICA EMAIL */}
+      {suspendModalBooking && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden p-6 space-y-5 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold shrink-0 border border-amber-200">
+                  <CloudRain className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-display font-bold text-slate-900">Sospensione Volo & Notifica</h3>
+                  <p className="text-xs text-slate-500">
+                    Prenotazione: <strong className="font-mono text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded">{suspendModalBooking.id}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSuspendModalBooking(null)}
+                className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {suspendSuccessMsg ? (
+              <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 p-4 rounded-2xl text-xs font-bold flex items-center gap-2.5">
+                <Check className="w-5 h-5 shrink-0 text-emerald-600" />
+                <span>{suspendSuccessMsg}</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Booking Details Card */}
+                <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-xs space-y-1.5 text-slate-700">
+                  <p><strong>Passeggero:</strong> {suspendModalBooking.name} ({suspendModalBooking.phone})</p>
+                  <p><strong>Email:</strong> {suspendModalBooking.email}</p>
+                  <p><strong>Data & Orario:</strong> {suspendModalBooking.date} alle ore {suspendModalBooking.timeSlot}</p>
+                  <p><strong>Esperienza:</strong> {suspendModalBooking.experienceName}</p>
+                  <p><strong>Pilota Referente:</strong> {suspendModalBooking.instructor || "Francesco Guarini"}</p>
+                </div>
+
+                {/* Reason Selection */}
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-wider">
+                    Motivo della Sospensione
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSuspendReasonType("meteo")}
+                      className={`p-3 rounded-2xl border text-xs font-bold text-left flex items-center gap-2 transition-all cursor-pointer ${
+                        suspendReasonType === "meteo"
+                          ? "bg-amber-50 border-amber-300 text-amber-900 shadow-sm"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <CloudRain className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Condizioni Meteo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSuspendReasonType("altro")}
+                      className={`p-3 rounded-2xl border text-xs font-bold text-left flex items-center gap-2 transition-all cursor-pointer ${
+                        suspendReasonType === "altro"
+                          ? "bg-amber-50 border-amber-300 text-amber-900 shadow-sm"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>Altro Motivo</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Custom Detail Input */}
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-450 block mb-1 tracking-wider">
+                    {suspendReasonType === "meteo" ? "Dettaglio Condizioni Meteo (Opzionale)" : "Specificare la motivazione (Obbligatorio)"}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={suspendReasonType === "meteo" ? "es. Vento forte e raffiche / Pioggia e scarsa visibilità" : "es. Manutenzione ordinaria del velivolo / Imprevisto tecnico"}
+                    value={suspendCustomReason}
+                    onChange={(e) => setSuspendCustomReason(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-amber-500 bg-white font-medium text-slate-800"
+                  />
+                </div>
+
+                {/* Note for Customer */}
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-450 block mb-1 tracking-wider">
+                    Nota Aggiuntiva per il Passeggero (Opzionale)
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="es. Ti consigliamo di ricontattarci per la giornata di sabato."
+                    value={suspendCustomNote}
+                    onChange={(e) => setSuspendCustomNote(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-amber-500 bg-white font-medium text-slate-800"
+                  />
+                </div>
+
+                {/* Email Checkbox */}
+                <label className="flex items-center gap-2 cursor-pointer pt-1 bg-amber-50/60 border border-amber-200/60 p-2.5 rounded-xl">
+                  <input
+                    type="checkbox"
+                    checked={suspendSendEmail}
+                    onChange={(e) => setSuspendSendEmail(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <span className="text-xs font-bold text-slate-800">
+                    Invia subito email di notifica al passeggero ({suspendModalBooking.email})
+                  </span>
+                </label>
+
+                {/* Modal Buttons */}
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setSuspendModalBooking(null)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    type="button"
+                    disabled={suspendingLoading}
+                    onClick={handleConfirmSuspension}
+                    className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {suspendingLoading ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    Conferma Sospensione & Invia Email
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

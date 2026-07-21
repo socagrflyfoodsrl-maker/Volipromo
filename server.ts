@@ -902,6 +902,101 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
     return res.status(400).json({ error: "Stato non valido." });
   });
 
+  // API Route: Suspend Booking with reason & send email notification
+  app.post("/api/admin/bookings/suspend", checkAdminAuth, async (req, res) => {
+    try {
+      const { bookingId, reason, customReason, customNote, sendEmail = true } = req.body;
+      if (!bookingId) {
+        return res.status(400).json({ error: "ID prenotazione mancante." });
+      }
+
+      const allBookings = await getBookingsAsync();
+      const booking = allBookings.find(b => b.id.toLowerCase() === bookingId.toLowerCase());
+      if (!booking) {
+        return res.status(404).json({ error: "Prenotazione non trovata." });
+      }
+
+      const success = await updateBookingStatusAsync(bookingId, "pending_weather");
+      if (!success) {
+        return res.status(500).json({ error: "Errore durante l'aggiornamento dello stato nel database." });
+      }
+      booking.status = "pending_weather";
+
+      let customerMailResult = null;
+      let pilotMailResult = null;
+
+      if (sendEmail) {
+        const selectedInstructor = booking.instructor || "Francesco Guarini";
+        const isRocco = selectedInstructor.includes("Rocco") || selectedInstructor.includes("Gallone");
+        const pilotEmail = isRocco ? "roccogallonevolo@gmail.com" : (process.env.SMTP_TO_PILOT || "guarinivolo1964@gmail.com");
+
+        let reasonLabel = "Condizioni Meteo Avverse (Vento / Pioggia / Scarsa Visibilità)";
+        if (reason === "altro") {
+          reasonLabel = customReason && customReason.trim() ? customReason.trim() : "Motivi Operativi / Sicurezza di Volo";
+        } else if (customReason && customReason.trim()) {
+          reasonLabel = `${reasonLabel} - ${customReason.trim()}`;
+        }
+
+        const noteText = customNote && customNote.trim() ? `\n\nNOTA DEL PILOTA:\n"${customNote.trim()}"` : "";
+
+        const emailTextToCustomer = `Gentile ${booking.name},
+
+Ti informiamo che il tuo volo promozionale in ultraleggero in programma per il ${booking.date} alle ore ${booking.timeSlot} è stato MOMENTANEAMENTE SOSPESO.
+
+MOTIVAZIONE DELLA SOSPENSIONE:
+• ${reasonLabel}${noteText}
+
+COSA SUCCEDE ADESSO?
+La tua prenotazione (Codice: ${booking.id}) rimane REGOLARMENTE ATTIVA nel nostro sistema ed è inserita in lista prioritaria.
+I voli in ultraleggero dipendono dalle condizioni atmosferiche per garantire la massima sicurezza.
+
+Il tuo pilota di riferimento (${selectedInstructor}) ti contatterà al più presto al numero ${booking.phone} o via email per concordare una nuova data e orario di decollo, senza alcun costo aggiuntivo.
+
+Riepilogo Prenotazione:
+- Codice Prenotazione: ${booking.id}
+- Esperienza: ${booking.experienceName}
+- Data/Ora Sospesa: ${booking.date} alle ore ${booking.timeSlot}
+- Campo di Volo: DuneAirPark (zona Fasano - Ostuni)
+- Pilota Referente: ${selectedInstructor} (${pilotEmail})
+
+Grazie per la comprensione e la collaborazione.
+Staff DuneAirPark - Campo di Volo Ultraleggeri`;
+
+        const emailTextToPilot = `Ciao ${selectedInstructor},
+Hai SOSPESO la prenotazione ${booking.id} (${booking.name}).
+
+Motivazione indicata: ${reasonLabel}
+Email inviata al cliente: ${booking.email}
+Telefono cliente: ${booking.phone}
+Data/Ora originaria: ${booking.date} - ${booking.timeSlot}
+
+Ricordati di contattare il passeggero per riprogrammare il volo!`;
+
+        customerMailResult = await sendEmail({
+          to: booking.email,
+          subject: `[Duneairpark] ⚠️ SOSPENSIONE VOLO - Codice ${booking.id}`,
+          text: emailTextToCustomer
+        });
+
+        pilotMailResult = await sendEmail({
+          to: pilotEmail,
+          subject: `[Duneairpark] NOTIFICA SOSPENSIONE - ${booking.id} (${booking.name})`,
+          text: emailTextToPilot
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: sendEmail ? "Volo sospeso e email di notifica inviata al passeggero." : "Stato del volo aggiornato a Sospeso.",
+        booking,
+        mailSent: customerMailResult
+      });
+    } catch (err: any) {
+      console.error("Errore nella sospensione del volo:", err);
+      return res.status(500).json({ error: "Errore interno durante la sospensione del volo." });
+    }
+  });
+
   // API Route: Delete Booking (Admin only)
   app.post("/api/admin/bookings/delete", checkAdminAuth, async (req, res) => {
     const { bookingId } = req.body;
