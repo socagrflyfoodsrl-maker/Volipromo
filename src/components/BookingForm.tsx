@@ -1,7 +1,24 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FlightPackage, Booking } from "../types";
-import { Calendar, Clock, User, Mail, Phone, Scale, CreditCard, ChevronRight, CheckCircle, Ticket, Printer, RefreshCw, Lock } from "lucide-react";
+import { 
+  Calendar, 
+  Clock, 
+  User, 
+  Mail, 
+  Phone, 
+  Scale, 
+  CreditCard, 
+  ChevronRight, 
+  ChevronLeft,
+  CheckCircle, 
+  Ticket, 
+  Printer, 
+  RefreshCw, 
+  Lock,
+  CalendarDays,
+  Sparkles
+} from "lucide-react";
 
 interface BookingFormProps {
   packages: FlightPackage[];
@@ -26,9 +43,13 @@ export default function BookingForm({
   const [phone, setPhone] = useState<string>("");
   const [weight, setWeight] = useState<string>("");
 
-  // Date & Time state (Puglia summer dates starting around mid-July 2026)
+  // Date & Time state
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<string>("");
+
+  // Extended Calendar state
+  const [calYear, setCalYear] = useState<number>(2026);
+  const [calMonth, setCalMonth] = useState<number>(6); // July (0-indexed)
 
   // Payment state - Payment is on-field (POS or cash)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("POS o Carta di Credito (al campo)");
@@ -47,28 +68,52 @@ export default function BookingForm({
     { id: "slot-4", label: "17:00 - 19:00", desc: "Luce calda del tramonto (Consigliatissimo per foto! 🌅)" },
   ];
 
-  // Helper: generates next 7 days starting from current date: Friday July 17, 2026
-  const generateDates = () => {
-    const dates = [];
-    const weekdays = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
-    const months = [
-      "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
-      "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
-    ];
+  const ITALIAN_MONTH_NAMES = [
+    "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+    "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
+  ];
 
-    const baseDate = new Date(2026, 6, 17); // July 17, 2026
+  const ITALIAN_MONTH_SHORT = [
+    "Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
+    "Lug", "Ago", "Set", "Ott", "Nov", "Dic"
+  ];
 
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(baseDate);
-      d.setDate(baseDate.getDate() + i);
-      const isoString = d.toISOString().split("T")[0];
-      const label = `${weekdays[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
-      dates.push({ isoString, label });
+  const handlePrevMonth = () => {
+    if (calMonth === 0) {
+      setCalMonth(11);
+      setCalYear((y) => y - 1);
+    } else {
+      setCalMonth((m) => m - 1);
     }
-    return dates;
   };
 
-  const datesList = generateDates();
+  const handleNextMonth = () => {
+    if (calMonth === 11) {
+      setCalMonth(0);
+      setCalYear((y) => y + 1);
+    } else {
+      setCalMonth((m) => m + 1);
+    }
+  };
+
+  const formatItalianDate = (isoString: string) => {
+    if (!isoString) return "";
+    const parts = isoString.split("-");
+    if (parts.length !== 3) return isoString;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) return isoString;
+    const dateObj = new Date(y, m, d);
+    const weekdays = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+    return `${weekdays[dateObj.getDay()]} ${d} ${ITALIAN_MONTH_NAMES[m]} ${y}`;
+  };
+
+  // Helper for rendering days in month grid
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const firstDayObj = new Date(calYear, calMonth, 1);
+  let startingDayOfWeek = firstDayObj.getDay() - 1; // Mon = 0
+  if (startingDayOfWeek < 0) startingDayOfWeek = 6; // Sun = 6
 
   // Weight Safety check logic
   const isWeightWarning = weight !== "" && Number(weight) > 100;
@@ -436,7 +481,7 @@ export default function BookingForm({
           </motion.div>
         )}
 
-        {/* Step 2: Date & Time Picker */}
+        {/* Step 2: Extended Date & Time Picker */}
         {step === 2 && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -444,39 +489,210 @@ export default function BookingForm({
             exit={{ opacity: 0, x: -20 }}
             className="space-y-6"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Custom Date Picker */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-750 uppercase tracking-wider flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-sky-600" /> 1. Seleziona il Giorno (Luglio 2026)
-                </h3>
-                <p className="text-xs text-slate-450">Date promozionali disponibili per voli estivi in Puglia:</p>
+            {/* Selected Date Indicator Banner */}
+            {selectedDate && (
+              <div className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center font-bold shadow-md">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-black uppercase text-sky-800 tracking-wider">Giorno Selezionato</div>
+                    <div className="text-sm font-bold text-slate-800">{formatItalianDate(selectedDate)}</div>
+                  </div>
+                </div>
+                <div className="bg-emerald-100 text-emerald-800 text-[10px] uppercase font-black px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Voli Disponibili
+                </div>
+              </div>
+            )}
 
-                <div className="grid grid-cols-1 gap-2">
-                  {datesList.map((d) => (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Extended Interactive Calendar */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-750 uppercase tracking-wider flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-sky-600" /> 1. Seleziona la Data del Volo
+                    </h3>
+                    <p className="text-xs text-slate-450 mt-0.5">Calendario esteso: disponibilità aperta tutto l'anno</p>
+                  </div>
+
+                  {/* Direct input date selector */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase">Data:</span>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      min="2026-07-17"
+                      onChange={(e) => {
+                        setSelectedDate(e.target.value);
+                        if (e.target.value) {
+                          const parts = e.target.value.split("-");
+                          if (parts.length === 3) {
+                            setCalYear(parseInt(parts[0], 10));
+                            setCalMonth(parseInt(parts[1], 10) - 1);
+                          }
+                        }
+                      }}
+                      className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs bg-white text-slate-700 font-medium focus:outline-none focus:border-sky-600"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Month Selectors */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
+                  {[
+                    { label: "Lug 26", y: 2026, m: 6 },
+                    { label: "Ago 26", y: 2026, m: 7 },
+                    { label: "Set 26", y: 2026, m: 8 },
+                    { label: "Ott 26", y: 2026, m: 9 },
+                    { label: "Nov 26", y: 2026, m: 10 },
+                    { label: "Dic 26", y: 2026, m: 11 },
+                    { label: "Gen 27", y: 2027, m: 0 },
+                    { label: "Feb 27", y: 2027, m: 1 },
+                  ].map((item) => {
+                    const isCurrent = calYear === item.y && calMonth === item.m;
+                    return (
+                      <button
+                        key={`${item.y}-${item.m}`}
+                        type="button"
+                        onClick={() => {
+                          setCalYear(item.y);
+                          setCalMonth(item.m);
+                        }}
+                        className={`px-3 py-1.5 text-[11px] font-bold rounded-lg whitespace-nowrap transition-all cursor-pointer ${
+                          isCurrent
+                            ? "bg-slate-900 text-white shadow-sm"
+                            : "bg-slate-100 hover:bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Calendar Card View */}
+                <div className="bg-white border-2 border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
+                  {/* Month header & navigation */}
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <button
-                      key={d.isoString}
                       type="button"
-                      onClick={() => setSelectedDate(d.isoString)}
-                      className={`px-4 py-3.5 text-xs font-bold rounded-xl border-2 text-left flex justify-between items-center transition-all ${
-                        selectedDate === d.isoString
-                          ? "bg-sky-600 text-white border-sky-600 shadow-lg shadow-sky-600/10"
-                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                      }`}
+                      onClick={handlePrevMonth}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                      title="Mese precedente"
                     >
-                      <span>{d.label}</span>
-                      <span className={`text-[9px] uppercase tracking-wider px-2 py-0.5 rounded font-black ${
-                        selectedDate === d.isoString ? "bg-sky-700 text-white" : "bg-emerald-100 text-emerald-800"
-                      }`}>
-                        Libero
-                      </span>
+                      <ChevronLeft className="w-5 h-5" />
                     </button>
-                  ))}
+
+                    <div className="text-center">
+                      <span className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+                        {ITALIAN_MONTH_NAMES[calMonth]} {calYear}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleNextMonth}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer"
+                      title="Mese successivo"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Weekday headers */}
+                  <div className="grid grid-cols-7 text-center text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    <div>Lun</div>
+                    <div>Mar</div>
+                    <div>Mer</div>
+                    <div>Gio</div>
+                    <div>Ven</div>
+                    <div className="text-sky-600">Sab</div>
+                    <div className="text-sky-600">Dom</div>
+                  </div>
+
+                  {/* Calendar Grid Days */}
+                  <div className="grid grid-cols-7 gap-1">
+                    {/* Blank padding cells before day 1 */}
+                    {Array.from({ length: startingDayOfWeek }).map((_, idx) => (
+                      <div key={`blank-${idx}`} className="h-9 sm:h-10 rounded-lg bg-slate-50/50" />
+                    ))}
+
+                    {/* Day Cells */}
+                    {Array.from({ length: daysInMonth }).map((_, idx) => {
+                      const dayNum = idx + 1;
+                      const dayDate = new Date(calYear, calMonth, dayNum);
+                      const yyyy = calYear;
+                      const mm = String(calMonth + 1).padStart(2, "0");
+                      const dd = String(dayNum).padStart(2, "0");
+                      const isoStr = `${yyyy}-${mm}-${dd}`;
+
+                      const isSelected = selectedDate === isoStr;
+                      // Consider past dates as before 2026-07-17 (baseline)
+                      const isPast = dayDate < new Date(2026, 6, 17, 0, 0, 0);
+
+                      return (
+                        <button
+                          key={isoStr}
+                          type="button"
+                          disabled={isPast}
+                          onClick={() => setSelectedDate(isoStr)}
+                          className={`h-9 sm:h-10 rounded-xl text-xs font-bold transition-all relative flex flex-col items-center justify-center cursor-pointer ${
+                            isSelected
+                              ? "bg-sky-600 text-white shadow-md shadow-sky-600/30 scale-105 z-10 border-2 border-sky-400"
+                              : isPast
+                              ? "bg-slate-50 text-slate-300 cursor-not-allowed line-through"
+                              : "bg-slate-50 hover:bg-sky-50 text-slate-700 hover:text-sky-700 hover:border-sky-300 border border-transparent"
+                          }`}
+                        >
+                          <span>{dayNum}</span>
+                          {!isPast && (
+                            <span className={`w-1 h-1 rounded-full ${isSelected ? "bg-white" : "bg-emerald-500"}`} />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Quick Promoted Dates Pills */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-500" /> Date Popolari & Festività:
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: "Prossimo Weekend (18 Lug)", date: "2026-07-18" },
+                      { label: "Ferragosto (15 Ago)", date: "2026-08-15" },
+                      { label: "Inizio Settembre (5 Set)", date: "2026-09-05" },
+                      { label: "Autunno in Volo (3 Ott)", date: "2026-10-03" },
+                    ].map((item) => (
+                      <button
+                        key={item.date}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDate(item.date);
+                          const parts = item.date.split("-");
+                          setCalYear(parseInt(parts[0], 10));
+                          setCalMonth(parseInt(parts[1], 10) - 1);
+                        }}
+                        className={`text-[10.5px] px-2.5 py-1 rounded-lg border font-semibold transition-all cursor-pointer ${
+                          selectedDate === item.date
+                            ? "bg-sky-600 text-white border-sky-600 shadow-sm"
+                            : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                        }`}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Time slots */}
-              <div className="space-y-3">
+              {/* Time Slots Selection */}
+              <div className="lg:col-span-5 space-y-3">
                 <h3 className="text-sm font-bold text-slate-750 uppercase tracking-wider flex items-center gap-2">
                   <Clock className="w-4 h-4 text-sky-600" /> 2. Scegli la Fascia Oraria
                 </h3>
@@ -490,7 +706,7 @@ export default function BookingForm({
                         key={slot.id}
                         type="button"
                         onClick={() => setSelectedSlot(slot.label)}
-                        className={`w-full px-4 py-3.5 text-left rounded-xl border-2 transition-all flex justify-between items-center ${
+                        className={`w-full px-4 py-3.5 text-left rounded-xl border-2 transition-all flex justify-between items-center cursor-pointer ${
                           selectedSlot === slot.label
                             ? "bg-slate-950 text-white border-slate-950 shadow-md"
                             : isSunset
@@ -528,7 +744,7 @@ export default function BookingForm({
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="text-slate-500 hover:text-slate-800 text-xs font-bold px-4 py-2"
+                className="text-slate-500 hover:text-slate-800 text-xs font-bold px-4 py-2 cursor-pointer"
               >
                 Indietro
               </button>
