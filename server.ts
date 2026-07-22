@@ -854,31 +854,67 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
 
   // API Route: Change Admin Password (Admin only)
   app.post("/api/admin/change-password", checkAdminAuth, async (req, res) => {
-    const { newPassword } = req.body;
-    if (!newPassword || newPassword.trim().length < 4) {
-      return res.status(400).json({ error: "La password deve contenere almeno 4 caratteri." });
-    }
-    const passwordToSave = newPassword.trim();
-
-    cachedAdminPassword = passwordToSave;
-    adminConfig.password = passwordToSave;
-    saveAdminConfig();
-
-    if (process.env.POSTGRES_URL) {
-      try {
-        await ensureTablesExist();
-        await sql`
-          INSERT INTO admin_config (key, value)
-          VALUES ('password', ${passwordToSave})
-          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
-        `;
-      } catch (err) {
-        console.error("Errore nel salvataggio della password su Postgres:", err);
-        return res.status(500).json({ error: "Errore nel salvataggio della password nel database." });
+    try {
+      const { newPassword } = req.body || {};
+      if (!newPassword || String(newPassword).trim().length < 4) {
+        return res.status(400).json({ error: "La password deve contenere almeno 4 caratteri." });
       }
-    }
+      const passwordToSave = String(newPassword).trim();
 
-    return res.json({ success: true, message: "Password aggiornata con successo!" });
+      cachedAdminPassword = passwordToSave;
+      adminConfig.password = passwordToSave;
+      saveAdminConfig();
+
+      if (usePostgres) {
+        try {
+          await ensureTablesExist();
+          if (usePostgres) {
+            await sql`
+              INSERT INTO admin_config (key, value)
+              VALUES ('password', ${passwordToSave})
+              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+            `;
+          }
+        } catch (err) {
+          console.warn("Avviso: Salvataggio password su Postgres fallito, mantenuto nel file di configurazione locale:", err);
+        }
+      }
+
+      return res.json({ success: true, message: "Password aggiornata con successo!" });
+    } catch (err: any) {
+      console.error("Errore modifica password:", err);
+      return res.status(500).json({ error: "Errore durante il salvataggio della nuova password." });
+    }
+  });
+
+  // API Route: Reset Admin Password to default ("dune2026")
+  app.post("/api/admin/reset-password", async (req, res) => {
+    try {
+      const defaultPass = "dune2026";
+      cachedAdminPassword = defaultPass;
+      adminConfig.password = defaultPass;
+      saveAdminConfig();
+
+      if (usePostgres) {
+        try {
+          await ensureTablesExist();
+          if (usePostgres) {
+            await sql`
+              INSERT INTO admin_config (key, value)
+              VALUES ('password', ${defaultPass})
+              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+            `;
+          }
+        } catch (err) {
+          console.warn("Avviso: Reset password su Postgres fallito, ripristinato locale:", err);
+        }
+      }
+
+      return res.json({ success: true, message: "Password ripristinata con successo a 'dune2026'." });
+    } catch (err: any) {
+      console.error("Errore ripristino password:", err);
+      return res.status(500).json({ error: "Errore durante il ripristino della password." });
+    }
   });
 
   // API Route: Get ALL bookings (Admin only)
