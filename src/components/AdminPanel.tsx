@@ -170,37 +170,6 @@ export default function AdminPanel() {
     }
   };
 
-  const handleResetPasswordToDefault = async () => {
-    if (!window.confirm("Sei sicuro di voler ripristinare la password predefinita 'dune2026'?")) return;
-    setPasswordError("");
-    setPasswordSuccess("");
-    setUpdatingPassword(true);
-
-    try {
-      const response = await fetch("/api/admin/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setPasswordSuccess("Password ripristinata con successo a 'dune2026'!");
-        sessionStorage.setItem("dune_admin_password", "dune2026");
-        setPassword("dune2026");
-        setNewPassword("");
-        setConfirmNewPassword("");
-        setError("");
-        setIsAuthorized(true);
-      } else {
-        setPasswordError(data.error || "Errore durante il ripristino della password.");
-      }
-    } catch (err) {
-      setPasswordError("Impossibile connettersi al server per ripristinare la password.");
-      console.error(err);
-    } finally {
-      setUpdatingPassword(false);
-    }
-  };
-
   // Load password from sessionStorage to prevent re-login on refresh
   useEffect(() => {
     const savedPass = sessionStorage.getItem("dune_admin_password");
@@ -585,17 +554,6 @@ export default function AdminPanel() {
             )}
             Sblocca Pannello
           </button>
-
-          <div className="pt-2 border-t border-slate-100 text-center">
-            <button
-              type="button"
-              onClick={handleResetPasswordToDefault}
-              disabled={updatingPassword}
-              className="text-[11px] text-slate-500 hover:text-sky-700 font-medium underline transition-colors cursor-pointer"
-            >
-              Problemi di accesso? Ripristina password predefinita (dune2026)
-            </button>
-          </div>
         </form>
       </div>
     );
@@ -1243,31 +1201,18 @@ export default function AdminPanel() {
                 />
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={updatingPassword}
-                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  {updatingPassword ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Lock className="w-4 h-4" />
-                  )}
-                  Aggiorna Password
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleResetPasswordToDefault}
-                  disabled={updatingPassword}
-                  className="px-4 py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  title="Ripristina la password predefinita dune2026"
-                >
-                  <RefreshCw className="w-4 h-4 text-amber-600" />
-                  Ripristina Default (dune2026)
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={updatingPassword}
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 rounded-xl transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {updatingPassword ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Lock className="w-4 h-4" />
+                )}
+                Aggiorna Password
+              </button>
             </form>
           </div>
         )}
