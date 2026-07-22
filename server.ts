@@ -887,36 +887,6 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
     }
   });
 
-  // API Route: Reset Admin Password to default ("dune2026")
-  app.post("/api/admin/reset-password", async (req, res) => {
-    try {
-      const defaultPass = "dune2026";
-      cachedAdminPassword = defaultPass;
-      adminConfig.password = defaultPass;
-      saveAdminConfig();
-
-      if (usePostgres) {
-        try {
-          await ensureTablesExist();
-          if (usePostgres) {
-            await sql`
-              INSERT INTO admin_config (key, value)
-              VALUES ('password', ${defaultPass})
-              ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
-            `;
-          }
-        } catch (err) {
-          console.warn("Avviso: Reset password su Postgres fallito, ripristinato locale:", err);
-        }
-      }
-
-      return res.json({ success: true, message: "Password ripristinata con successo a 'dune2026'." });
-    } catch (err: any) {
-      console.error("Errore ripristino password:", err);
-      return res.status(500).json({ error: "Errore durante il ripristino della password." });
-    }
-  });
-
   // API Route: Get ALL bookings (Admin only)
   app.get("/api/admin/bookings", checkAdminAuth, async (req, res) => {
     const allBookings = await getBookingsAsync();
