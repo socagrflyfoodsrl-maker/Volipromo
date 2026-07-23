@@ -645,11 +645,8 @@ async function sendEmail({ to, subject, text, html }: { to: string; subject: str
 
   // Auto-clean space-separated Gmail App Passwords
   let cleanedPass = pass;
-  if (host && host.toLowerCase().includes("gmail") && cleanedPass.includes(" ")) {
-    const noSpaces = cleanedPass.replace(/\s+/g, "");
-    if (noSpaces.length === 16) {
-      cleanedPass = noSpaces;
-    }
+  if (host && host.toLowerCase().includes("gmail")) {
+    cleanedPass = cleanedPass.replace(/\s+/g, "");
   }
 
   const logId = "MSG-" + Math.random().toString(36).substring(2, 8).toUpperCase();
