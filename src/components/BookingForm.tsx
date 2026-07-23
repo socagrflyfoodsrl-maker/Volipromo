@@ -25,6 +25,7 @@ interface BookingFormProps {
   selectedPackage: FlightPackage;
   onSelectPackage: (pkg: FlightPackage) => void;
   onBookingComplete: (booking: Booking) => void;
+  onGoToMyBookings?: () => void;
 }
 
 export default function BookingForm({
@@ -32,6 +33,7 @@ export default function BookingForm({
   selectedPackage,
   onSelectPackage,
   onBookingComplete,
+  onGoToMyBookings,
 }: BookingFormProps) {
   const [step, setStep] = useState<number>(1); // 1: Info & Weight, 2: Date & Time, 3: Payment, 4: Confirmed
   const [loading, setLoading] = useState<boolean>(false);
@@ -147,12 +149,23 @@ export default function BookingForm({
   const isStep3Valid = selectedPaymentMethod !== "";
 
   // Process Booking with server
-  const handleCheckout = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCheckout = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!isStep3Valid) return;
 
     setLoading(true);
-    setLoadingMessage("Elaborazione della prenotazione...");
+    setLoadingMessage("Elaborazione prenotazione e apertura della pagina PayPal...");
+
+    // Auto-open PayPal window in new tab for deposit payment
+    const url = paypalInfo.paypalMeUrl.startsWith("http")
+      ? `${paypalInfo.paypalMeUrl}/${paypalInfo.depositAmount}`
+      : `https://${paypalInfo.paypalMeUrl}/${paypalInfo.depositAmount}`;
+
+    try {
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error("Apertura finestra PayPal non riuscita:", err);
+    }
 
     // Stage 1: Confirm selection
     setTimeout(() => {
@@ -177,7 +190,7 @@ export default function BookingForm({
               experienceId: selectedPackage.id,
               experienceName: selectedPackage.name,
               price: selectedPackage.price,
-              paymentMethod: selectedPaymentMethod,
+              paymentMethod: "PayPal (€50 Acconto) + Contanti (al campo)",
               instructor: selectedInstructor,
             }),
           });
@@ -211,7 +224,7 @@ export default function BookingForm({
             experienceId: selectedPackage.id,
             experienceName: selectedPackage.name,
             price: selectedPackage.price,
-            paymentMethod: selectedPaymentMethod,
+            paymentMethod: "PayPal (€50 Acconto) + Contanti (al campo)",
             status: "confirmed",
             createdAt: new Date().toISOString(),
             instructor: selectedInstructor,
@@ -223,8 +236,8 @@ export default function BookingForm({
           setLoading(false);
           setLoadingMessage("");
         }
-      }, 1000);
-    }, 1000);
+      }, 700);
+    }, 600);
   };
 
   const resetForm = () => {
@@ -870,16 +883,11 @@ export default function BookingForm({
                     <div className="pt-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          const url = paypalInfo.paypalMeUrl.startsWith("http")
-                            ? `${paypalInfo.paypalMeUrl}/${paypalInfo.depositAmount}`
-                            : `https://${paypalInfo.paypalMeUrl}/${paypalInfo.depositAmount}`;
-                          window.open(url, "_blank");
-                        }}
-                        className="w-full bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all border border-amber-500/50"
+                        onClick={() => handleCheckout()}
+                        className="w-full bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all border border-amber-500/50"
                       >
                         <span className="italic font-black text-sm tracking-tighter text-[#003087]">PayPal</span>
-                        <span>Apri PayPal per Acconto (€{paypalInfo.depositAmount},00)</span>
+                        <span>Paga Acconto di €{paypalInfo.depositAmount},00 e Completa Volo</span>
                       </button>
                       <span className="text-[10px] text-slate-400 text-center block mt-2">
                         🔒 Pagamento sicuro tramite conto PayPal o carta di credito su {paypalInfo.email}.
@@ -993,9 +1001,12 @@ export default function BookingForm({
             </div>
 
             <div className="space-y-1 max-w-md mx-auto">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full inline-block mb-1">
+                ✓ Procedura di Conferma Conclusa
+              </span>
               <h3 className="text-2xl font-display font-black text-slate-800">Acconto Ricevuto & Volo Prenotato!</h3>
               <p className="text-xs text-slate-500">
-                L'acconto di €50 via PayPal è stato confermato. Saldo di €{Math.max(0, completedBooking.price - 50)} da versare in contanti al campo di volo.
+                L'acconto di €50 via PayPal è stato registrato. Saldo di €{Math.max(0, completedBooking.price - 50)} da versare in contanti al campo di volo.
               </p>
             </div>
 
@@ -1079,18 +1090,32 @@ export default function BookingForm({
               </p>
             </div>
 
-            <div className="pt-4 flex flex-col sm:flex-row justify-center gap-3">
+            <div className="pt-4 flex flex-col sm:flex-row justify-center items-center gap-3">
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-250 font-bold py-2.5 px-5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full sm:w-auto bg-white hover:bg-slate-50 text-slate-700 border border-slate-250 font-bold py-3 px-5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <Printer className="w-4 h-4" /> Stampa Ricevuta
               </button>
+              
+              {onGoToMyBookings && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetForm();
+                    onGoToMyBookings();
+                  }}
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 px-6 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 cursor-pointer"
+                >
+                  <CheckCircle className="w-4 h-4" /> Chiudi e Vai a "I Miei Voli"
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={resetForm}
-                className="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 px-6 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-100 cursor-pointer"
+                className="w-full sm:w-auto bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-6 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/10 cursor-pointer"
               >
                 Nuova Prenotazione
               </button>

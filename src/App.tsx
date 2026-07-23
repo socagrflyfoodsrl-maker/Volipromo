@@ -445,6 +445,7 @@ export default function App() {
                         selectedPackage={selectedPackage}
                         onSelectPackage={setSelectedPackage}
                         onBookingComplete={handleBookingComplete}
+                        onGoToMyBookings={() => setUserTab("ticket")}
                       />
                     </div>
                   </motion.div>
