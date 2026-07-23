@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FlightPackage, Booking } from "../types";
+import FlightReceipt from "./FlightReceipt";
 import { 
   Calendar, 
   Clock, 
@@ -1010,62 +1011,9 @@ export default function BookingForm({
               </p>
             </div>
 
-            {/* Flight Ticket Visual */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl max-w-md mx-auto text-left overflow-hidden shadow-md">
-              <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
-                <div className="flex items-center gap-1.5">
-                  <Ticket className="w-4 h-4 text-sky-400" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">Duneairpark Boarding Pass</span>
-                </div>
-                <span className="font-mono text-xs font-bold text-sky-400">{completedBooking.id}</span>
-              </div>
-
-              <div className="p-4 space-y-4">
-                <div className="grid grid-cols-3 gap-3 border-b border-slate-200 pb-3">
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">PASSEGGERO</span>
-                    <span className="text-xs font-bold text-slate-800 truncate block">{completedBooking.name}</span>
-                  </div>
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">ISTRUTTORE</span>
-                    <span className="text-xs font-bold text-sky-700 truncate block">{completedBooking.instructor || "Francesco Guarini"}</span>
-                  </div>
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">CONTATTO</span>
-                    <span className="text-xs font-medium text-slate-600 truncate block">{completedBooking.email}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 border-b border-slate-200 pb-3">
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">DATA VOLO</span>
-                    <span className="text-xs font-bold text-slate-800">{completedBooking.date}</span>
-                  </div>
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">FASCIA ORARIA</span>
-                    <span className="text-xs font-bold text-sky-600">{completedBooking.timeSlot}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">ESPERIENZA</span>
-                    <span className="text-[11px] font-bold text-slate-800 truncate block">{completedBooking.experienceName}</span>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-[8px] text-slate-400 uppercase block">ACCONTO PAYPAL</span>
-                    <span className="text-[11px] font-bold text-sky-600 block">€50,00 (Versato)</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[8px] text-slate-400 uppercase block">SALDO IN CONTANTI</span>
-                    <span className="text-xs font-extrabold text-emerald-600">€{Math.max(0, completedBooking.price - 50)},00</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-sky-50 border-t border-sky-100 p-3 text-center text-[10px] text-sky-900 leading-relaxed font-medium">
-                📍 Ritrovo: Campo di volo Duneairpark, Torre Canne - Ostuni • Consigliamo di arrivare 15 min prima.
-              </div>
+            {/* Flight Ticket Visual & Printable Receipt with QR Code */}
+            <div className="max-w-xl mx-auto text-left">
+              <FlightReceipt booking={completedBooking} showPrintButton={false} />
             </div>
 
             {/* Real-time automated email confirmation dispatch status box */}

@@ -6,6 +6,7 @@ import BookingForm from "./components/BookingForm";
 import PilotChat from "./components/PilotChat";
 import PhotoGallery from "./components/PhotoGallery";
 import AdminPanel from "./components/AdminPanel";
+import FlightReceipt from "./components/FlightReceipt";
 import {
   Compass,
   Map,
@@ -590,49 +591,24 @@ export default function App() {
                                 Nessun volo trovato. Verifica i dettagli inseriti o contatta <strong>guarinivolo1964@gmail.com</strong>.
                               </p>
                             ) : (
-                              <div className="space-y-3">
+                              <div className="space-y-6">
                                 {searchResult.map((b) => (
-                                  <div key={b.id} className="bg-white p-4 rounded-xl border border-slate-200 relative overflow-hidden shadow-sm">
-                                    <div className="absolute top-0 right-0 bg-emerald-100 text-emerald-800 text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-bl-lg">
-                                      Confermato
-                                    </div>
-                                    
-                                    <span className="text-[9px] text-slate-400 font-mono block">ID: {b.id}</span>
-                                    <strong className="text-sm text-slate-800 font-display block mt-0.5">{b.experienceName}</strong>
-                                    <span className="text-xs text-slate-500 block mt-1">
-                                      📅 {b.date} • 🕒 {b.timeSlot}
-                                    </span>
-                                    <div className="flex justify-between items-baseline mt-2 pt-2 border-t border-slate-100">
-                                      <span className="text-[10.5px] text-slate-400 font-medium">Peso: {b.weight} kg</span>
-                                      <span className="text-xs font-black text-slate-700 font-mono">€{b.price}</span>
-                                    </div>
-
-                                    <div className="mt-4 pt-3.5 border-t border-slate-150 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                                      <span className="text-[9.5px] text-slate-400 leading-normal max-w-xs">
-                                        Notifiche automatiche già trasmesse. Contatto: <strong>guarinivolo1964@gmail.com</strong>.
-                                      </span>
-                                      <div className="flex gap-2">
-                                        <button
-                                          type="button"
-                                          disabled={resendingId === b.id}
-                                          onClick={() => handleResendEmail(b.id)}
-                                          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-all ${
-                                            resendStatus[b.id]
-                                              ? "bg-slate-50 text-slate-700 border border-slate-350"
-                                              : "bg-sky-50 border border-sky-100 text-sky-700 hover:bg-sky-100 cursor-pointer"
-                                          }`}
-                                        >
-                                          <Send className="w-3 h-3" />
-                                          {resendStatus[b.id] || "Rinvia Email"}
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => window.print()}
-                                          className="bg-white border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 hover:bg-slate-50 cursor-pointer"
-                                        >
-                                          <FileText className="w-3 h-3" /> Stampa
-                                        </button>
-                                      </div>
+                                  <div key={b.id} className="space-y-3">
+                                    <FlightReceipt booking={b} showPrintButton={true} />
+                                    <div className="flex justify-end gap-2 no-print">
+                                      <button
+                                        type="button"
+                                        disabled={resendingId === b.id}
+                                        onClick={() => handleResendEmail(b.id)}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm ${
+                                          resendStatus[b.id]
+                                            ? "bg-slate-100 text-slate-700 border border-slate-300"
+                                            : "bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 cursor-pointer"
+                                        }`}
+                                      >
+                                        <Send className="w-3.5 h-3.5" />
+                                        {resendStatus[b.id] || "Rinvia Ricevuta via Email"}
+                                      </button>
                                     </div>
                                   </div>
                                 ))}
