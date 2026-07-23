@@ -27,7 +27,10 @@ import {
   Upload,
   Plus,
   Image as ImageIcon,
-  X
+  X,
+  CreditCard,
+  ExternalLink,
+  ShieldCheck
 } from "lucide-react";
 
 export default function AdminPanel() {
@@ -36,7 +39,19 @@ export default function AdminPanel() {
   const [error, setError] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"bookings" | "email" | "stats" | "settings" | "gallery">("bookings");
+  const [activeTab, setActiveTab] = useState<"bookings" | "email" | "stats" | "settings" | "gallery" | "paypal">("bookings");
+
+  // State for PayPal Config Management
+  const [paypalEmail, setPaypalEmail] = useState("soc.agr.flyfoodsrl@gmail.com");
+  const [paypalClientId, setPaypalClientId] = useState("");
+  const [paypalMeUrl, setPaypalMeUrl] = useState("https://www.paypal.me/flyfoodsrl");
+  const [paypalDeposit, setPaypalDeposit] = useState("50");
+  const [paypalEnv, setPaypalEnv] = useState<"live" | "sandbox">("live");
+  const [paypalInstructions, setPaypalInstructions] = useState("Acconto prenotazione volo promozionale in ultraleggero. Il saldo verrà versato in contanti al campo di volo.");
+  const [loadingPaypalConfig, setLoadingPaypalConfig] = useState(false);
+  const [savingPaypalConfig, setSavingPaypalConfig] = useState(false);
+  const [paypalSuccessMsg, setPaypalSuccessMsg] = useState("");
+  const [paypalErrorMsg, setPaypalErrorMsg] = useState("");
 
   // State for Gallery Management
   const [galleryImages, setGalleryImages] = useState<any[]>([]);
@@ -498,9 +513,68 @@ export default function AdminPanel() {
     reader.readAsDataURL(file);
   };
 
+  const fetchPaypalConfig = async () => {
+    setLoadingPaypalConfig(true);
+    try {
+      const res = await fetch("/api/paypal/config");
+      const data = await res.json();
+      if (data.success && data.config) {
+        setPaypalEmail(data.config.email || "soc.agr.flyfoodsrl@gmail.com");
+        setPaypalClientId(data.config.clientId || "");
+        setPaypalMeUrl(data.config.paypalMeUrl || "https://www.paypal.me/flyfoodsrl");
+        setPaypalDeposit(String(data.config.depositAmount || 50));
+        setPaypalEnv(data.config.environment || "live");
+        setPaypalInstructions(data.config.instructions || "Acconto prenotazione volo promozionale in ultraleggero.");
+      }
+    } catch (err) {
+      console.error("Errore caricamento PayPal config:", err);
+    } finally {
+      setLoadingPaypalConfig(false);
+    }
+  };
+
+  const handleSavePaypalConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingPaypalConfig(true);
+    setPaypalSuccessMsg("");
+    setPaypalErrorMsg("");
+
+    try {
+      const res = await fetch("/api/admin/paypal-config", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": password
+        },
+        body: JSON.stringify({
+          email: paypalEmail,
+          clientId: paypalClientId,
+          paypalMeUrl,
+          depositAmount: Number(paypalDeposit) || 50,
+          environment: paypalEnv,
+          instructions: paypalInstructions
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Impossibile salvare la configurazione PayPal");
+      }
+
+      setPaypalSuccessMsg("Configurazione PayPal salvata ed attivata con successo!");
+    } catch (err: any) {
+      setPaypalErrorMsg(err.message || "Errore durante il salvataggio.");
+    } finally {
+      setSavingPaypalConfig(false);
+    }
+  };
+
   useEffect(() => {
     if (isAuthorized && activeTab === "gallery") {
       fetchGalleryImages();
+    }
+    if (isAuthorized && activeTab === "paypal") {
+      fetchPaypalConfig();
     }
   }, [isAuthorized, activeTab]);
 
@@ -607,6 +681,14 @@ export default function AdminPanel() {
               }`}
             >
               <Mail className="w-3.5 h-3.5" /> Email SMTP
+            </button>
+            <button
+              onClick={() => setActiveTab("paypal")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                activeTab === "paypal" ? "bg-sky-600 text-white" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5 text-amber-400" /> Configurazione PayPal
             </button>
             <button
               onClick={() => setActiveTab("settings")}
@@ -1214,6 +1296,226 @@ export default function AdminPanel() {
                 Aggiorna Password
               </button>
             </form>
+          </div>
+        )}
+
+        {/* TAB 5: PAYPAL CONFIGURATION */}
+        {activeTab === "paypal" && (
+          <div className="space-y-6 max-w-4xl">
+            {/* Header & Status Banner */}
+            <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-xl border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="bg-[#003087] text-white px-2.5 py-1 rounded-md font-black italic text-xs tracking-tighter inline-flex items-center gap-0.5">
+                    <span className="text-[#0070BA]">Pay</span><span>Pal</span>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                    Sistema Acconto Attivo
+                  </span>
+                </div>
+                <h3 className="text-xl font-display font-black text-white">Configurazione Incasso PayPal (€50)</h3>
+                <p className="text-xs text-slate-300">
+                  Gestisci l'account PayPal ricevente per gli acconti di €50 e i link ufficiali di versamento online.
+                </p>
+              </div>
+
+              <div className="bg-slate-800/80 border border-slate-700 p-3.5 rounded-2xl text-right shrink-0">
+                <span className="text-[10px] uppercase text-slate-400 font-bold block">Importo Acconto</span>
+                <span className="text-2xl font-black text-emerald-400 font-mono">€{paypalDeposit},00</span>
+              </div>
+            </div>
+
+            {/* Form & Info Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              <form onSubmit={handleSavePaypalConfig} className="lg:col-span-7 bg-slate-50 border border-slate-200 p-6 rounded-3xl space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-sky-600" /> Credenziali Account PayPal
+                  </h4>
+                  {loadingPaypalConfig && (
+                    <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
+                  )}
+                </div>
+
+                {paypalErrorMsg && (
+                  <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl p-3 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{paypalErrorMsg}</span>
+                  </div>
+                )}
+
+                {paypalSuccessMsg && (
+                  <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl p-3 text-xs flex items-center gap-2">
+                    <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>{paypalSuccessMsg}</span>
+                  </div>
+                )}
+
+                {/* Email Account */}
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-wider">
+                    Email Account PayPal Ricevente
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="soc.agr.flyfoodsrl@gmail.com"
+                    value={paypalEmail}
+                    onChange={(e) => setPaypalEmail(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-semibold text-slate-800"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Indirizzo email accreditato su PayPal su cui vengono inviati gli acconti.
+                  </p>
+                </div>
+
+                {/* PayPal.Me URL */}
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-wider">
+                    Link Diretto PayPal.Me o Checkout
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://www.paypal.me/flyfoodsrl"
+                    value={paypalMeUrl}
+                    onChange={(e) => setPaypalMeUrl(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-mono font-semibold text-sky-800"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Il passeggero verrà indirizzato a questo link per saldare l'acconto di €50.
+                  </p>
+                </div>
+
+                {/* Client ID Optional */}
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-wider">
+                    PayPal API Client ID (Opzionale)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Es. AXX1234567890_ClientID_PayPal_Developer"
+                    value={paypalClientId}
+                    onChange={(e) => setPaypalClientId(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-mono text-slate-700"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Necessario solo se si attiva l'integrazione diretta via PayPal JS SDK Buttons.
+                  </p>
+                </div>
+
+                {/* Deposit Amount & Environment */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-wider">
+                      Importo Acconto (€)
+                    </label>
+                    <input
+                      type="number"
+                      min="10"
+                      max="500"
+                      value={paypalDeposit}
+                      onChange={(e) => setPaypalDeposit(e.target.value)}
+                      className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-bold font-mono text-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-wider">
+                      Ambiente PayPal
+                    </label>
+                    <select
+                      value={paypalEnv}
+                      onChange={(e: any) => setPaypalEnv(e.target.value)}
+                      className="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-sky-600 bg-white font-bold text-slate-800"
+                    >
+                      <option value="live">Produzione (Live)</option>
+                      <option value="sandbox">Test / Sandbox</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Instructions */}
+                <div>
+                  <label className="text-[10px] uppercase font-black text-slate-450 block mb-1.5 tracking-wider">
+                    Causale / Istruzioni Pagamento
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={paypalInstructions}
+                    onChange={(e) => setPaypalInstructions(e.target.value)}
+                    className="w-full border-2 border-slate-200 rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-sky-600 bg-white font-medium text-slate-700 resize-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingPaypalConfig}
+                  className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs py-3.5 rounded-2xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-55"
+                >
+                  {savingPaypalConfig ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="w-4 h-4" />
+                  )}
+                  Salva Configurazione PayPal
+                </button>
+              </form>
+
+              {/* Live Preview & PayPal Guide Card */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="bg-white border-2 border-sky-100 rounded-3xl p-5 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+                      Anteprima Pagamento Cliente
+                    </h4>
+                    <span className="text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-md">
+                      Formula Mista
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-xs text-slate-700">
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Acconto Online (PayPal):</span>
+                      <strong className="text-sky-600 font-mono font-bold text-sm">€{paypalDeposit},00</strong>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
+                      <span className="text-slate-500 font-medium">Saldo al Campo:</span>
+                      <strong className="text-emerald-600 font-mono font-bold text-sm">In Contanti</strong>
+                    </div>
+                    <div className="flex justify-between items-center py-1.5">
+                      <span className="text-slate-500 font-medium">Email Ricevente:</span>
+                      <span className="font-mono text-[11px] text-slate-800 truncate max-w-[170px]">{paypalEmail}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <a
+                      href={paypalMeUrl.startsWith("http") ? `${paypalMeUrl}/${paypalDeposit}` : `https://${paypalMeUrl}/${paypalDeposit}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-[#003087] hover:bg-[#002468] text-white font-bold text-xs py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition-all"
+                    >
+                      <span>Verifica Link PayPal.Me</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                    <span className="text-[10px] text-slate-400 text-center block mt-1">
+                      Apre il link di pagamento diretto in una nuova scheda.
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-sky-50 border border-sky-200 rounded-3xl p-5 space-y-2">
+                  <h5 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-sky-600" />
+                    Come Funziona la Conferma
+                  </h5>
+                  <p className="text-[11px] text-sky-900 leading-relaxed">
+                    Quando un utente inserisce i dati e clicca su <strong>"Conferma e Paga Acconto €50"</strong>, riceve la mail di conferma sia lui che l'istruttore designato, con la notifica dell'acconto di €50 e l'indicazione del saldo in contanti al campo.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

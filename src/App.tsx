@@ -125,8 +125,7 @@ export default function App() {
       
       const contentType = res.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
-        const textMsg = await res.text();
-        throw new Error(textMsg.substring(0, 100) || "Risposta server non valida");
+        throw new Error("Risposta del server non valida.");
       }
       
       const data = await res.json();
@@ -185,8 +184,7 @@ export default function App() {
       const res = await fetch(`/api/bookings?${query.toString()}`);
       const contentType = res.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
-        const textMsg = await res.text();
-        throw new Error(textMsg.substring(0, 100) || "Risposta server non valida");
+        throw new Error("Risposta del server non valida.");
       }
       const data = await res.json();
       setSearchResult(data.bookings || []);

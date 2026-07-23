@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { FlightPackage, Booking } from "../types";
 import { 
@@ -59,6 +59,28 @@ export default function BookingForm({
 
   // Completed booking placeholder
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null);
+
+  // Dynamic PayPal info
+  const [paypalInfo, setPaypalInfo] = useState({
+    email: "soc.agr.flyfoodsrl@gmail.com",
+    paypalMeUrl: "https://www.paypal.me/flyfoodsrl",
+    depositAmount: 50,
+  });
+
+  useEffect(() => {
+    fetch("/api/paypal/config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.config) {
+          setPaypalInfo({
+            email: data.config.email || "soc.agr.flyfoodsrl@gmail.com",
+            paypalMeUrl: data.config.paypalMeUrl || "https://www.paypal.me/flyfoodsrl",
+            depositAmount: Number(data.config.depositAmount) || 50,
+          });
+        }
+      })
+      .catch((err) => console.error("Error loading paypal config in form:", err));
+  }, []);
 
   // Constants
   const timeSlots = [
@@ -162,8 +184,7 @@ export default function BookingForm({
 
           const contentType = response.headers.get("content-type") || "";
           if (!contentType.includes("application/json")) {
-            const textMsg = await response.text();
-            throw new Error(textMsg.substring(0, 100) || "Risposta server non valida");
+            throw new Error("Risposta del server non valida. Riprova tra poco.");
           }
 
           const data = await response.json();
@@ -845,14 +866,23 @@ export default function BookingForm({
                       </p>
                     </div>
 
-                    {/* PayPal Button Simulator */}
+                    {/* PayPal Button */}
                     <div className="pt-2">
-                      <div className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all border border-amber-500/50">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = paypalInfo.paypalMeUrl.startsWith("http")
+                            ? `${paypalInfo.paypalMeUrl}/${paypalInfo.depositAmount}`
+                            : `https://${paypalInfo.paypalMeUrl}/${paypalInfo.depositAmount}`;
+                          window.open(url, "_blank");
+                        }}
+                        className="w-full bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all border border-amber-500/50"
+                      >
                         <span className="italic font-black text-sm tracking-tighter text-[#003087]">PayPal</span>
-                        <span>Paga Acconto di €50,00</span>
-                      </div>
+                        <span>Apri PayPal per Acconto (€{paypalInfo.depositAmount},00)</span>
+                      </button>
                       <span className="text-[10px] text-slate-400 text-center block mt-2">
-                        🔒 Cliccando "Conferma e Paga Acconto", verrai reindirizzato al circuito PayPal per completare l'acconto di €50.
+                        🔒 Pagamento sicuro tramite conto PayPal o carta di credito su {paypalInfo.email}.
                       </span>
                     </div>
                   </div>

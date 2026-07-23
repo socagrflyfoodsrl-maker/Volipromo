@@ -59,8 +59,7 @@ export default function PilotChat() {
 
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
-        const textMsg = await response.text();
-        throw new Error(textMsg.substring(0, 100) || "Risposta server non valida");
+        throw new Error("Risposta del server non valida.");
       }
 
       const data = await response.json();

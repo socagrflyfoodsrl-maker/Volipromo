@@ -87,6 +87,49 @@ interface EmailLog {
 
 const BOOKINGS_FILE = path.join(process.cwd(), "bookings.json");
 const ADMIN_CONFIG_FILE = path.join(process.cwd(), "admin_config.json");
+const PAYPAL_CONFIG_FILE = path.join(process.cwd(), "paypal_config.json");
+
+interface PayPalConfig {
+  email: string;
+  clientId: string;
+  paypalMeUrl: string;
+  depositAmount: number;
+  currency: string;
+  environment: "live" | "sandbox";
+  instructions: string;
+}
+
+const defaultPayPalConfig: PayPalConfig = {
+  email: "soc.agr.flyfoodsrl@gmail.com",
+  clientId: "",
+  paypalMeUrl: "https://www.paypal.me/flyfoodsrl",
+  depositAmount: 50,
+  currency: "EUR",
+  environment: "live",
+  instructions: "Acconto prenotazione volo promozionale in ultraleggero. Il saldo verrà versato in contanti al campo di volo."
+};
+
+function loadPayPalConfig(): PayPalConfig {
+  try {
+    if (fs.existsSync(PAYPAL_CONFIG_FILE)) {
+      const data = fs.readFileSync(PAYPAL_CONFIG_FILE, "utf-8");
+      return { ...defaultPayPalConfig, ...JSON.parse(data) };
+    }
+  } catch (err) {
+    console.error("Errore nel caricamento della configurazione PayPal:", err);
+  }
+  return { ...defaultPayPalConfig };
+}
+
+let paypalConfig: PayPalConfig = loadPayPalConfig();
+
+function savePayPalConfig() {
+  try {
+    fs.writeFileSync(PAYPAL_CONFIG_FILE, JSON.stringify(paypalConfig, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Errore nel salvataggio della configurazione PayPal:", err);
+  }
+}
 
 interface AdminConfig {
   password?: string;
@@ -660,6 +703,16 @@ async function sendEmail({ to, subject, text, html }: { to: string; subject: str
       return { success: true, simulated: false, logId };
     } catch (err: any) {
       console.error("Nodemailer error:", err);
+      let errorMessage = err.message || "Unknown SMTP Error";
+      if (
+        errorMessage.includes("534") ||
+        errorMessage.includes("5.7.9") ||
+        errorMessage.includes("Application-specific password required") ||
+        errorMessage.includes("Invalid login")
+      ) {
+        errorMessage = "Errore Gmail SMTP (534-5.7.9): Gmail richiede una Password per le App a 16 caratteri. Generala su https://myaccount.google.com/apppasswords ed inseriscila nella variabile SMTP_PASS.";
+      }
+
       emailLogs.unshift({
         id: logId,
         to,
@@ -668,9 +721,9 @@ async function sendEmail({ to, subject, text, html }: { to: string; subject: str
         timestamp,
         simulated: false,
         success: false,
-        error: err.message || "Unknown SMTP Error",
+        error: errorMessage,
       });
-      return { success: false, simulated: false, error: err.message, logId };
+      return { success: false, simulated: false, error: errorMessage, logId };
     }
   } else {
     // Simulated dispatch (console only)
@@ -846,6 +899,42 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
       return res.status(500).json({ error: "Errore durante la verifica delle credenziali." });
     }
   };
+
+  // API Route: Public PayPal Configuration
+  app.get("/api/paypal/config", (req, res) => {
+    return res.json({
+      success: true,
+      config: paypalConfig
+    });
+  });
+
+  // API Route: Admin Update PayPal Configuration
+  app.post("/api/admin/paypal-config", checkAdminAuth, (req, res) => {
+    try {
+      const { email, clientId, paypalMeUrl, depositAmount, currency, environment, instructions } = req.body || {};
+
+      paypalConfig = {
+        email: email ? String(email).trim() : paypalConfig.email,
+        clientId: clientId !== undefined ? String(clientId).trim() : paypalConfig.clientId,
+        paypalMeUrl: paypalMeUrl ? String(paypalMeUrl).trim() : paypalConfig.paypalMeUrl,
+        depositAmount: Number(depositAmount) > 0 ? Number(depositAmount) : paypalConfig.depositAmount,
+        currency: currency ? String(currency).trim() : paypalConfig.currency,
+        environment: environment === "sandbox" ? "sandbox" : "live",
+        instructions: instructions ? String(instructions).trim() : paypalConfig.instructions
+      };
+
+      savePayPalConfig();
+
+      return res.json({
+        success: true,
+        message: "Configurazione PayPal aggiornata con successo!",
+        config: paypalConfig
+      });
+    } catch (err: any) {
+      console.error("Errore aggiornamento PayPal config:", err);
+      return res.status(500).json({ error: "Impossibile salvare la configurazione PayPal." });
+    }
+  });
 
   // API Route: Admin login
   app.post("/api/admin/login", async (req, res) => {
@@ -1295,7 +1384,7 @@ Informazioni Chiave per rispondere:
    - Peso massimo consentito per il passeggero: 100 kg (per bilanciamento dell'ultraleggero).
    - Età minima: 16 anni (con consenso dei genitori).
    - Meteo: Il volo in ultraleggero è subordinato alle condizioni meteorologiche. Se il pilota valuta che il vento o la visibilità non sono idonei, il volo viene rimandato e riprogrammato in accordo con il passeggero (senza costi).
-   - Prenotazioni: Si effettuano online sul sito senza pagamento anticipato. L'utente può scegliere il proprio istruttore preferito (Francesco Guarini o Rocco Gallone). Una volta confermata la prenotazione, viene inviata un'email automatica di conferma all'istruttore designato e al passeggero. Il pagamento avverrà direttamente al campo di volo tramite POS o contanti.
+   - Prenotazioni: Si effettuano online sul sito con un acconto di €50 versato tramite PayPal. Il saldo rimanente verrà corrisposto direttamente in contanti al campo di volo il giorno dell'esperienza. L'utente può scegliere il proprio istruttore preferito (Francesco Guarini o Rocco Gallone). Una volta confermata la prenotazione, viene inviata un'email automatica di conferma all'istruttore designato e al passeggero.
 
 Rispondi sempre in italiano in modo chiaro ed esaustivo, incoraggiando l'utente a prenotare questa magnifica esperienza o a fare domande sulla sicurezza, la durata e le rotte. Non inventare dati non indicati.
 `;
@@ -1306,9 +1395,9 @@ Rispondi sempre in italiano in modo chiaro ed esaustivo, incoraggiando l'utente 
         parts: [{ text: m.content }],
       }));
 
-      // Generate content with Gemini 3.5 Flash
+      // Generate content with Gemini 2.5 Flash
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: formattedContents,
         config: {
           systemInstruction,

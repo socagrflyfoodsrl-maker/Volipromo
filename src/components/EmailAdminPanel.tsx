@@ -100,8 +100,7 @@ export function EmailAdminPanel() {
 
       const contentType = res.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
-        const textMsg = await res.text();
-        throw new Error(textMsg.substring(0, 100) || "Risposta server non valida");
+        throw new Error("Risposta del server non valida.");
       }
 
       const data = await res.json();
@@ -194,13 +193,18 @@ export function EmailAdminPanel() {
                     </div>
                   </div>
                   
-                  <div className="bg-white/60 p-2.5 rounded-xl border border-amber-200/50 text-[9.5px] text-amber-800 leading-relaxed font-medium">
-                    💡 Per inviare email reali, configura queste variabili nel tuo file <code className="font-mono bg-amber-100 px-1 rounded text-red-700 font-bold">.env</code>:
-                    <div className="font-mono mt-1 text-[9px] bg-slate-50 p-1.5 rounded text-slate-700">
-                      SMTP_HOST=tuo.server.com<br />
-                      SMTP_PORT=587<br />
-                      SMTP_USER=tua_email@dominio.it<br />
-                      SMTP_PASS=tua_password
+                  <div className="bg-white/60 p-2.5 rounded-xl border border-amber-200/50 text-[9.5px] text-amber-800 leading-relaxed font-medium space-y-1.5">
+                    <div>
+                      💡 Per inviare email reali, configura queste variabili nel tuo file <code className="font-mono bg-amber-100 px-1 rounded text-red-700 font-bold">.env</code>:
+                      <div className="font-mono mt-1 text-[9px] bg-slate-50 p-1.5 rounded text-slate-700">
+                        SMTP_HOST=smtp.gmail.com<br />
+                        SMTP_PORT=587<br />
+                        SMTP_USER=soc.agr.flyfoodsrl@gmail.com<br />
+                        SMTP_PASS=xxxx xxxx xxxx xxxx
+                      </div>
+                    </div>
+                    <div className="bg-amber-100/70 p-2 rounded-lg text-[9px] text-amber-900 border border-amber-300/60 font-sans">
+                      <strong>⚠️ Nota per Gmail:</strong> Non usare la password normale del tuo account Google. Genera una <strong>Password per le App</strong> da <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="underline font-bold text-sky-800">myaccount.google.com/apppasswords</a> ed incollala in <code className="font-mono font-bold text-amber-950">SMTP_PASS</code>.
                     </div>
                   </div>
                 </div>
