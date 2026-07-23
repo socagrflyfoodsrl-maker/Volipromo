@@ -56,6 +56,7 @@ export default function BookingForm({
 
   // Payment state - €50 deposit via PayPal + cash balance at airfield
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("Acconto €50 (PayPal) + Saldo in contanti (al campo)");
+  const [hasOpenedPaypal, setHasOpenedPaypal] = useState<boolean>(false);
 
   // Pilot / Instructor selection state
   const [selectedInstructor, setSelectedInstructor] = useState<string>("Francesco Guarini");
@@ -149,15 +150,8 @@ export default function BookingForm({
   const isStep2Valid = selectedDate !== "" && selectedSlot !== "";
   const isStep3Valid = selectedPaymentMethod !== "";
 
-  // Process Booking with server
-  const handleCheckout = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!isStep3Valid) return;
-
-    setLoading(true);
-    setLoadingMessage("Elaborazione prenotazione e apertura della pagina PayPal...");
-
-    // Auto-open PayPal window in new tab for deposit payment
+  // Open PayPal Payment Window
+  const handleOpenPaypal = () => {
     const url = paypalInfo.paypalMeUrl.startsWith("http")
       ? `${paypalInfo.paypalMeUrl}/${paypalInfo.depositAmount}`
       : `https://${paypalInfo.paypalMeUrl}/${paypalInfo.depositAmount}`;
@@ -167,6 +161,22 @@ export default function BookingForm({
     } catch (err) {
       console.error("Apertura finestra PayPal non riuscita:", err);
     }
+    setHasOpenedPaypal(true);
+  };
+
+  // Process Booking with server (executed AFTER payment)
+  const handleCheckout = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!isStep3Valid) return;
+
+    if (!hasOpenedPaypal) {
+      // If user clicks confirm before opening PayPal, open PayPal first
+      handleOpenPaypal();
+      return;
+    }
+
+    setLoading(true);
+    setLoadingMessage("Verifica pagamento acconto e chiusura della prenotazione in corso...");
 
     // Stage 1: Confirm selection
     setTimeout(() => {
@@ -175,7 +185,7 @@ export default function BookingForm({
       // Stage 2: Save Booking and Trigger Notifications
       setTimeout(async () => {
         const targetEmail = selectedInstructor === "Istruttore Rocco Gallone" ? "roccogallonevolo@gmail.com" : "guarinivolo1964@gmail.com";
-        setLoadingMessage(`Generazione notifica automatizzata per il pilota (${targetEmail})...`);
+        setLoadingMessage(`Invio biglietto di volo e ricevuta al pilota (${targetEmail})...`);
 
         try {
           const response = await fetch("/api/book", {
@@ -249,6 +259,7 @@ export default function BookingForm({
     setSelectedDate("");
     setSelectedSlot("");
     setSelectedPaymentMethod("Acconto €50 (PayPal) + Saldo in contanti (al campo)");
+    setHasOpenedPaypal(false);
     setCompletedBooking(null);
     setSelectedInstructor("Pilota");
     setStep(1);
@@ -880,16 +891,35 @@ export default function BookingForm({
                       </p>
                     </div>
 
-                    {/* PayPal Button */}
+                    {/* PayPal Button / Payment Confirmation */}
                     <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => handleCheckout()}
-                        className="w-full bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all border border-amber-500/50"
-                      >
-                        <span className="italic font-black text-sm tracking-tighter text-[#003087]">PayPal</span>
-                        <span>Paga Acconto di €{paypalInfo.depositAmount},00 e Completa Volo</span>
-                      </button>
+                      {hasOpenedPaypal ? (
+                        <div className="bg-emerald-50 border-2 border-emerald-300 rounded-xl p-4 space-y-2.5">
+                          <div className="flex items-center gap-2 text-emerald-900 font-extrabold text-xs">
+                            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span>Scheda PayPal Aperta per l'Acconto</span>
+                          </div>
+                          <p className="text-[11px] text-emerald-800 leading-relaxed">
+                            Esegui il versamento dell'acconto di <strong>€{paypalInfo.depositAmount},00</strong> nella pagina PayPal aperta, quindi premi il pulsante verde in basso per chiudere e registrare la tua prenotazione.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleOpenPaypal}
+                            className="text-[10.5px] font-bold text-sky-700 underline hover:text-sky-900 cursor-pointer block pt-0.5"
+                          >
+                            🔗 Riapri la scheda di pagamento PayPal (€{paypalInfo.depositAmount},00)
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleOpenPaypal}
+                          className="w-full bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all border border-amber-500/50"
+                        >
+                          <span className="italic font-black text-sm tracking-tighter text-[#003087]">PayPal</span>
+                          <span>1. Apri Pagamento Acconto (€{paypalInfo.depositAmount},00) su PayPal</span>
+                        </button>
+                      )}
                       <span className="text-[10px] text-slate-400 text-center block mt-2">
                         🔒 Pagamento sicuro tramite conto PayPal o carta di credito su {paypalInfo.email}.
                       </span>
@@ -977,13 +1007,23 @@ export default function BookingForm({
                 <button
                   type="submit"
                   disabled={!isStep3Valid}
-                  className={`flex items-center gap-2 font-bold px-8 py-3.5 rounded-2xl text-xs transition-all ${
-                    isStep3Valid
-                      ? "bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20 cursor-pointer"
-                      : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                  className={`flex items-center gap-2 font-black px-7 py-3.5 rounded-2xl text-xs transition-all ${
+                    hasOpenedPaypal
+                      ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 cursor-pointer animate-pulse"
+                      : "bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/10 cursor-pointer"
                   }`}
                 >
-                  Conferma e Paga Acconto €50 (PayPal) <ChevronRight className="w-4 h-4" />
+                  {hasOpenedPaypal ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 text-emerald-200" />
+                      <span>2. Ho Effettuato il Pagamento → Chiudi e Conferma Prenotazione</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>1. Effettua Pagamento Acconto su PayPal per Proseguire</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             </form>
