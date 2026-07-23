@@ -51,8 +51,8 @@ export default function BookingForm({
   const [calYear, setCalYear] = useState<number>(2026);
   const [calMonth, setCalMonth] = useState<number>(6); // July (0-indexed)
 
-  // Payment state - Payment is on-field (POS or cash)
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("POS o Carta di Credito (al campo)");
+  // Payment state - €50 deposit via PayPal + cash balance at airfield
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("Acconto €50 (PayPal) + Saldo in contanti (al campo)");
 
   // Pilot / Instructor selection state
   const [selectedInstructor, setSelectedInstructor] = useState<string>("Francesco Guarini");
@@ -213,7 +213,7 @@ export default function BookingForm({
     setWeight("");
     setSelectedDate("");
     setSelectedSlot("");
-    setSelectedPaymentMethod("POS o Carta di Credito (al campo)");
+    setSelectedPaymentMethod("Acconto €50 (PayPal) + Saldo in contanti (al campo)");
     setCompletedBooking(null);
     setSelectedInstructor("Pilota");
     setStep(1);
@@ -772,91 +772,111 @@ export default function BookingForm({
             exit={{ opacity: 0, x: -20 }}
             className="space-y-6"
           >
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-              <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wide">Riepilogo Esperienza</span>
-                <h4 className="text-sm font-black text-slate-800">{selectedPackage.name}</h4>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Decollo da <strong>Duneairpark</strong>, il {selectedDate} ({selectedSlot})
-                </p>
+            {/* Breakdown Banner */}
+            <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-lg border border-slate-800 space-y-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-white/10 pb-3">
+                <div>
+                  <span className="text-[10px] text-sky-400 font-extrabold uppercase tracking-widest">Riepilogo e Formula Pagamento</span>
+                  <h4 className="text-base font-black text-white mt-0.5">{selectedPackage.name}</h4>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Campo di Volo <strong>Duneairpark</strong> • {selectedDate} ({selectedSlot})
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-slate-400 block font-semibold uppercase">Prezzo Totale Volo</span>
+                  <span className="text-2xl font-black text-emerald-400 font-mono">€{selectedPackage.price}</span>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-xs text-slate-400 block font-semibold">TOTALE PROMO</span>
-                <span className="text-lg font-black text-emerald-600 font-mono">€{selectedPackage.price}</span>
+
+              {/* Price Calculation breakdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="bg-sky-950/60 border border-sky-500/30 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-sky-300 block">1. Acconto Prenotazione</span>
+                    <span className="text-xs font-semibold text-slate-200">Online tramite PayPal</span>
+                  </div>
+                  <span className="text-lg font-black font-mono text-sky-400">€50,00</span>
+                </div>
+
+                <div className="bg-emerald-950/60 border border-emerald-500/30 rounded-xl p-3 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-emerald-300 block">2. Saldo al Campo</span>
+                    <span className="text-xs font-semibold text-slate-200">In Contanti al decollo</span>
+                  </div>
+                  <span className="text-lg font-black font-mono text-emerald-400">
+                    €{Math.max(0, selectedPackage.price - 50)},00
+                  </span>
+                </div>
               </div>
             </div>
 
             <form onSubmit={handleCheckout} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 
-                {/* Payment Selection Card */}
-                <div className="space-y-4">
+                {/* Payment Selection & PayPal Box */}
+                <div className="lg:col-span-7 space-y-4">
                   <h3 className="text-sm font-bold text-slate-750 uppercase tracking-wider flex items-center gap-2">
-                    <CreditCard className="w-4 h-4 text-sky-600" /> 3. Metodo di Pagamento in Loco
+                    <CreditCard className="w-4 h-4 text-sky-600" /> 3. Pagamento Acconto (€50,00)
                   </h3>
-                  <p className="text-xs text-slate-450">
-                    Il pagamento avviene direttamente sul campo di volo il giorno dell'esperienza. Seleziona la tua preferenza:
-                  </p>
+                  
+                  {/* PayPal Deposit Active Option */}
+                  <div className="bg-white border-2 border-sky-500 rounded-2xl p-5 shadow-md space-y-4 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-sky-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl tracking-wider">
+                      Richiesto per Conferma
+                    </div>
 
-                  <div className="space-y-3">
-                    {/* Option 1: POS / Card */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPaymentMethod("POS o Carta di Credito (al campo)")}
-                      className={`w-full p-4 rounded-xl border-2 text-left transition-all flex items-start gap-3.5 ${
-                        selectedPaymentMethod === "POS o Carta di Credito (al campo)"
-                          ? "bg-sky-50 border-sky-600 shadow-md"
-                          : "bg-white border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
-                        selectedPaymentMethod === "POS o Carta di Credito (al campo)"
-                          ? "border-sky-600 text-sky-600"
-                          : "border-slate-300 text-transparent"
-                      }`}>
-                        <span className="w-2 h-2 rounded-full bg-sky-600" />
-                      </span>
-                      <div>
-                        <span className="text-xs font-bold block text-slate-800">POS o Carta di Credito / Debito</span>
-                        <span className="text-[11px] text-slate-500 leading-relaxed block mt-1">
-                          Accettiamo tutte le carte, bancomat, Apple Pay e Google Pay sul campo di volo.
-                        </span>
+                    <div className="flex items-center gap-3">
+                      <div className="bg-[#003087] text-white px-3 py-1.5 rounded-lg font-black italic text-sm tracking-tighter flex items-center gap-1 shadow-sm">
+                        <span className="text-[#0070BA]">Pay</span><span>Pal</span>
                       </div>
-                    </button>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800">Acconto di Prenotazione con PayPal (€50)</h4>
+                        <p className="text-[11px] text-slate-500">Transazione sicura online con conto PayPal o carta di credito</p>
+                      </div>
+                    </div>
 
-                    {/* Option 2: Cash */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPaymentMethod("Contanti (al campo)")}
-                      className={`w-full p-4 rounded-xl border-2 text-left transition-all flex items-start gap-3.5 ${
-                        selectedPaymentMethod === "Contanti (al campo)"
-                          ? "bg-sky-50 border-sky-600 shadow-md"
-                          : "bg-white border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 flex-shrink-0 ${
-                        selectedPaymentMethod === "Contanti (al campo)"
-                          ? "border-sky-600 text-sky-600"
-                          : "border-slate-300 text-transparent"
-                      }`}>
-                        <span className="w-2 h-2 rounded-full bg-sky-600" />
-                      </span>
-                      <div>
-                        <span className="text-xs font-bold block text-slate-800">Contanti</span>
-                        <span className="text-[11px] text-slate-500 leading-relaxed block mt-1">
-                          Paga direttamente in contanti il giorno del volo presso la nostra sede al campo di volo.
-                        </span>
+                    <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-3 text-xs text-sky-950 space-y-1.5 leading-relaxed">
+                      <div className="font-bold flex items-center gap-1.5 text-sky-900">
+                        <Lock className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Garanzia Prenotazione Posto Volo:</span>
                       </div>
-                    </button>
+                      <p className="text-[11px] text-slate-600">
+                        L'acconto di €50 conferma il tuo slot in calendario. Il saldo rimanente di <strong>€{Math.max(0, selectedPackage.price - 50)}</strong> verrà saldato direttamente in <strong>contanti</strong> presso il campo di volo prima del decollo.
+                      </p>
+                    </div>
+
+                    {/* PayPal Button Simulator */}
+                    <div className="pt-2">
+                      <div className="bg-amber-400 hover:bg-amber-500 text-slate-900 font-extrabold text-xs py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md cursor-pointer transition-all border border-amber-500/50">
+                        <span className="italic font-black text-sm tracking-tighter text-[#003087]">PayPal</span>
+                        <span>Paga Acconto di €50,00</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 text-center block mt-2">
+                        🔒 Cliccando "Conferma e Paga Acconto", verrai reindirizzato al circuito PayPal per completare l'acconto di €50.
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Cash Balance Info */}
+                  <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 flex items-start gap-3">
+                    <div className="p-2 rounded-xl bg-emerald-600 text-white text-lg font-bold">
+                      💵
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-emerald-900">Saldo Rimanente: €{Math.max(0, selectedPackage.price - 50)},00 in Contanti</h4>
+                      <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
+                        Il saldo di €{Math.max(0, selectedPackage.price - 50)} va pagato in <strong>contanti</strong> direttamente al pilota o alla segreteria il giorno del volo.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Summary / Confirmation graphic */}
-                <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-sky-950 text-white p-6 rounded-2xl shadow-xl space-y-4">
+                {/* Summary Card */}
+                <div className="lg:col-span-5 bg-gradient-to-br from-slate-900 via-slate-800 to-sky-950 text-white p-6 rounded-2xl shadow-xl space-y-4">
                   <div className="flex justify-between items-start border-b border-white/10 pb-3">
                     <div>
                       <span className="text-[9px] tracking-widest text-sky-400 font-mono block font-bold">DUNEAIRPARK RESERVATION</span>
-                      <h4 className="text-sm font-bold text-white mt-1">Riepilogo Passeggero</h4>
+                      <h4 className="text-sm font-bold text-white mt-1">Dettagli Prenotazione</h4>
                     </div>
                     <span className="text-2xl">✈️</span>
                   </div>
@@ -872,31 +892,38 @@ export default function BookingForm({
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Email:</span>
-                      <span className="font-semibold text-slate-200 text-right max-w-[180px] truncate">{email}</span>
+                      <span className="font-semibold text-slate-200 text-right max-w-[150px] truncate">{email}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-400">Peso Passeggero:</span>
                       <span className="font-semibold text-slate-200 text-right">{weight} kg</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Pilota Assegnato:</span>
+                      <span className="font-semibold text-sky-300 text-right">{selectedInstructor}</span>
+                    </div>
                     <div className="flex justify-between pt-2 border-t border-white/10">
                       <span className="text-slate-400">Data e Fascia:</span>
                       <span className="font-bold text-sky-400 text-right">{selectedDate} ({selectedSlot})</span>
                     </div>
-                    <div className="flex justify-between items-baseline pt-2">
-                      <span className="text-slate-400">Importo da saldare:</span>
-                      <span className="text-base font-black text-emerald-400 font-mono">€{selectedPackage.price}</span>
+
+                    <div className="pt-3 border-t border-white/10 space-y-1.5">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-slate-300">Acconto PayPal:</span>
+                        <span className="text-sm font-bold text-sky-400 font-mono">€50,00</span>
+                      </div>
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-slate-300">Saldo in Contanti:</span>
+                        <span className="text-sm font-bold text-emerald-400 font-mono">€{Math.max(0, selectedPackage.price - 50)},00</span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="bg-white/5 rounded-xl p-3 border border-white/10 text-[10px] text-slate-300 leading-relaxed">
-                    ℹ️ Nessun addebito online. Riceverai immediatamente una mail con la conferma della prenotazione.
+                  <div className="bg-white/5 rounded-xl p-3 border border-white/10 text-[10px] text-slate-300 leading-relaxed flex items-center gap-2">
+                    <Lock className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+                    <span>Pagamento sicuro acconto €50 con PayPal. Il saldo si effettua in contanti al campo.</span>
                   </div>
                 </div>
-              </div>
-
-              <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-200 flex items-center gap-2 justify-center text-[10.5px] text-slate-500 font-medium">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Nessuna carta richiesta. Pagamento sul campo con POS o Contanti al momento del volo.</span>
               </div>
 
               {/* Step 3 Actions */}
@@ -904,7 +931,7 @@ export default function BookingForm({
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="text-slate-500 hover:text-slate-800 text-xs font-bold px-4 py-2"
+                  className="text-slate-500 hover:text-slate-800 text-xs font-bold px-4 py-2 cursor-pointer"
                 >
                   Indietro
                 </button>
@@ -913,11 +940,11 @@ export default function BookingForm({
                   disabled={!isStep3Valid}
                   className={`flex items-center gap-2 font-bold px-8 py-3.5 rounded-2xl text-xs transition-all ${
                     isStep3Valid
-                      ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/15 cursor-pointer"
+                      ? "bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20 cursor-pointer"
                       : "bg-slate-100 text-slate-400 cursor-not-allowed"
                   }`}
                 >
-                  Conferma Prenotazione €{selectedPackage.price}
+                  Conferma e Paga Acconto €50 (PayPal) <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
             </form>
@@ -936,9 +963,9 @@ export default function BookingForm({
             </div>
 
             <div className="space-y-1 max-w-md mx-auto">
-              <h3 className="text-2xl font-display font-black text-slate-800">Volo Prenotato & Confermato!</h3>
+              <h3 className="text-2xl font-display font-black text-slate-800">Acconto Ricevuto & Volo Prenotato!</h3>
               <p className="text-xs text-slate-500">
-                La prenotazione è stata completata con successo. Pagamento in loco il giorno del volo.
+                L'acconto di €50 via PayPal è stato confermato. Saldo di €{Math.max(0, completedBooking.price - 50)} da versare in contanti al campo di volo.
               </p>
             </div>
 
@@ -985,12 +1012,12 @@ export default function BookingForm({
                     <span className="text-[11px] font-bold text-slate-800 truncate block">{completedBooking.experienceName}</span>
                   </div>
                   <div className="text-center">
-                    <span className="text-[8px] text-slate-400 uppercase block">PAGAMENTO</span>
-                    <span className="text-[10px] font-bold text-slate-700 block truncate">{completedBooking.paymentMethod}</span>
+                    <span className="text-[8px] text-slate-400 uppercase block">ACCONTO PAYPAL</span>
+                    <span className="text-[11px] font-bold text-sky-600 block">€50,00 (Versato)</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[8px] text-slate-400 uppercase block">DA PAGARE IN LOCO</span>
-                    <span className="text-xs font-extrabold text-emerald-600">€{completedBooking.price}</span>
+                    <span className="text-[8px] text-slate-400 uppercase block">SALDO IN CONTANTI</span>
+                    <span className="text-xs font-extrabold text-emerald-600">€{Math.max(0, completedBooking.price - 50)},00</span>
                   </div>
                 </div>
               </div>
@@ -1006,19 +1033,19 @@ export default function BookingForm({
               <div className="space-y-1.5 text-xs text-slate-700">
                 <div className="flex items-center gap-2 font-medium">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>Email di riepilogo inviata al passeggero: <strong>{completedBooking.email}</strong></span>
+                  <span>Email con ricevuta acconto €50 inviata a: <strong>{completedBooking.email}</strong></span>
                 </div>
                 <div className="flex items-center gap-2 font-medium">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>Email di notifica inviata al Pilota ({completedBooking.instructor || "Pilota"}): <strong className="text-sky-600">{(completedBooking.instructor === "Istruttore Rocco Gallone") ? "roccogallonevolo@gmail.com" : "guarinivolo1964@gmail.com"}</strong></span>
+                  <span>Notifica di volo inviata al Pilota ({completedBooking.instructor || "Pilota"}): <strong className="text-sky-600">{(completedBooking.instructor === "Istruttore Rocco Gallone") ? "roccogallonevolo@gmail.com" : "guarinivolo1964@gmail.com"}</strong></span>
                 </div>
                 <div className="flex items-center gap-2 font-medium">
                   <span className="text-emerald-500 font-bold">✓</span>
-                  <span>Prenotazione registrata nei sistemi di Duneairpark.</span>
+                  <span>Prenotazione e slot registrati nei sistemi Duneairpark.</span>
                 </div>
               </div>
               <p className="text-[10.5px] text-slate-500 pt-1 leading-relaxed border-t border-slate-250">
-                <strong>Nota di volo:</strong> Poiché i voli in ultraleggero sono legati a vento e visibilità, {completedBooking.instructor && completedBooking.instructor.includes("Rocco") ? "l'istruttore Rocco Gallone" : "il pilota"} ti contatterà via telefono o email 24 ore prima per confermare l'idoneità meteo o concordare un eventuale orario alternativo.
+                <strong>Nota di volo & Saldo:</strong> Il saldo di €{Math.max(0, completedBooking.price - 50)} verrà versato in contanti al momento del volo. Poiché i voli in ultraleggero dipendono dalle condizioni meteo, {completedBooking.instructor && completedBooking.instructor.includes("Rocco") ? "l'istruttore Rocco Gallone" : "il pilota"} ti contatterà 24 ore prima per la conferma definitiva.
               </p>
             </div>
 
@@ -1026,14 +1053,14 @@ export default function BookingForm({
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-250 font-bold py-2.5 px-5 rounded-xl text-xs flex items-center justify-center gap-1.5"
+                className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-250 font-bold py-2.5 px-5 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Printer className="w-4 h-4" /> Stampa Ricevuta
               </button>
               <button
                 type="button"
                 onClick={resetForm}
-                className="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 px-6 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-100"
+                className="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2.5 px-6 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-100 cursor-pointer"
               >
                 Nuova Prenotazione
               </button>

@@ -734,7 +734,7 @@ app.use("/src/assets", express.static(path.join(process.cwd(), "src/assets")));
         experienceId,
         experienceName,
         price: Number(price),
-        paymentMethod: paymentMethod || "Carta di Credito",
+        paymentMethod: paymentMethod || "PayPal (Acconto €50) + Contanti al campo",
         status: "confirmed",
         createdAt: new Date().toISOString(),
         instructor: selectedInstructor,
@@ -742,6 +742,7 @@ app.use("/src/assets", express.static(path.join(process.cwd(), "src/assets")));
 
       await saveBookingAsync(newBooking);
 
+      const remainingBalance = Math.max(0, Number(price) - 50);
 
       const emailTextToPilot = `Ciao ${pilotName},
 Hai ricevuto una nuova prenotazione per un volo promozionale in ultraleggero!
@@ -756,15 +757,17 @@ Dettagli Volo:
 - Esperienza: ${experienceName} (${experienceId})
 - Data: ${date}
 - Fascia Oraria: ${timeSlot}
-- Importo da saldare in loco: €${price} (Metodo preferito: ${paymentMethod})
+- Totale Volo: €${price}
+- Acconto Ricevuto (PayPal): €50
+- Saldo da riscuotere in contanti al campo: €${remainingBalance}
 - Istruttore designato: ${selectedInstructor}
 
-La prenotazione è stata CONFERMATA. Il pagamento avverrà direttamente al campo di volo (POS o contanti).
+La prenotazione è stata CONFERMATA. L'acconto di €50 è stato versato via PayPal. Il saldo rimanente (€${remainingBalance}) verrà riscosso in contanti direttamente al campo di volo.
 Si prega di monitorare il meteo per il giorno selezionato.`;
 
       const emailTextToCustomer = `Gentile ${name},
 Ti confermiamo la prenotazione del tuo volo promozionale in ultraleggero!
-Il pagamento dell'esperienza avverrà direttamente al campo di volo il giorno dell'esperienza (tramite POS/Carta o in contanti). Non è richiesto alcun pagamento anticipato online.
+Abbiamo registrato l'acconto di €50 versato tramite PayPal. Il saldo rimanente di €${remainingBalance} avverrà direttamente in contanti al campo di volo il giorno dell'esperienza.
 
 Ecco il tuo riepilogo:
 - Codice Prenotazione: ${bookingId}
@@ -773,7 +776,9 @@ Ecco il tuo riepilogo:
 - Data: ${date}
 - Fascia Oraria: ${timeSlot}
 - Peso inserito: ${weight} kg
-- Importo da saldare in loco: €${price} (Metodo preferito: ${paymentMethod})
+- Prezzo Totale: €${price}
+- Acconto Versato (PayPal): €50
+- Saldo da versare al campo: €${remainingBalance} (in contanti)
 
 Pilota di riferimento: ${selectedInstructor} (${pilotEmail})
 
