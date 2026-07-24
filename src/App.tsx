@@ -7,6 +7,7 @@ import PilotChat from "./components/PilotChat";
 import PhotoGallery from "./components/PhotoGallery";
 import AdminPanel from "./components/AdminPanel";
 import FlightReceipt from "./components/FlightReceipt";
+import FleetSection from "./components/FleetSection";
 import {
   Compass,
   Map,
@@ -102,7 +103,7 @@ export default function App() {
 
   // Navigation states
   const [viewMode, setViewMode] = useState<"user" | "admin">("user");
-  const [userTab, setUserTab] = useState<"book" | "map" | "gallery" | "ticket" | "pilot">("book");
+  const [userTab, setUserTab] = useState<"book" | "map" | "fleet" | "gallery" | "ticket" | "pilot">("book");
 
   // Search booking state
   const [searchEmail, setSearchEmail] = useState<string>("");
@@ -249,6 +250,14 @@ export default function App() {
                 <Map className="w-4 h-4" /> Rotte
               </button>
               <button
+                onClick={() => setUserTab("fleet")}
+                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                  userTab === "fleet" ? "bg-white text-sky-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                <Plane className="w-4 h-4" /> Flotta
+              </button>
+              <button
                 onClick={() => setUserTab("ticket")}
                 className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
                   userTab === "ticket" ? "bg-white text-sky-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
@@ -316,6 +325,14 @@ export default function App() {
             }`}
           >
             <Map className="w-3.5 h-3.5" /> Rotte
+          </button>
+          <button
+            onClick={() => setUserTab("fleet")}
+            className={`px-3 py-2 rounded-lg text-[10.5px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5 ${
+              userTab === "fleet" ? "bg-sky-50 text-sky-700 border border-sky-100" : "text-slate-500"
+            }`}
+          >
+            <Plane className="w-3.5 h-3.5" /> Flotta
           </button>
           <button
             onClick={() => setUserTab("ticket")}
@@ -493,6 +510,18 @@ export default function App() {
                         onSelectPackage={setSelectedPackage}
                       />
                     </div>
+                  </motion.div>
+                )}
+
+                {/* FLEET TAB */}
+                {userTab === "fleet" && (
+                  <motion.div
+                    key="tab-fleet"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                  >
+                    <FleetSection onBookFlight={() => setUserTab("book")} />
                   </motion.div>
                 )}
 
