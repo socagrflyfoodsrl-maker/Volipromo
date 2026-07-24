@@ -519,12 +519,12 @@ export default function AdminPanel() {
       const res = await fetch("/api/paypal/config");
       const data = await res.json();
       if (data.success && data.config) {
-        setPaypalEmail(data.config.email || "soc.agr.flyfoodsrl@gmail.com");
-        setPaypalClientId(data.config.clientId || "");
-        setPaypalMeUrl(data.config.paypalMeUrl || "https://www.paypal.me/flyfoodsrl");
-        setPaypalDeposit(String(data.config.depositAmount || 50));
-        setPaypalEnv(data.config.environment || "live");
-        setPaypalInstructions(data.config.instructions || "Acconto prenotazione volo promozionale in ultraleggero.");
+        setPaypalEmail(data.config.email ?? "soc.agr.flyfoodsrl@gmail.com");
+        setPaypalClientId(data.config.clientId ?? "");
+        setPaypalMeUrl(data.config.paypalMeUrl ?? "https://www.paypal.me/flyfoodsrl");
+        setPaypalDeposit(String(data.config.depositAmount ?? 50));
+        setPaypalEnv(data.config.environment ?? "live");
+        setPaypalInstructions(data.config.instructions ?? "Acconto prenotazione volo promozionale in ultraleggero.");
       }
     } catch (err) {
       console.error("Errore caricamento PayPal config:", err);
@@ -559,6 +559,15 @@ export default function AdminPanel() {
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Impossibile salvare la configurazione PayPal");
+      }
+
+      if (data.config) {
+        setPaypalEmail(data.config.email ?? paypalEmail);
+        setPaypalClientId(data.config.clientId ?? paypalClientId);
+        setPaypalMeUrl(data.config.paypalMeUrl ?? paypalMeUrl);
+        setPaypalDeposit(String(data.config.depositAmount ?? paypalDeposit));
+        setPaypalEnv(data.config.environment ?? paypalEnv);
+        setPaypalInstructions(data.config.instructions ?? paypalInstructions);
       }
 
       setPaypalSuccessMsg("Configurazione PayPal salvata ed attivata con successo!");

@@ -116,19 +116,78 @@ function loadPayPalConfig(): PayPalConfig {
       return { ...defaultPayPalConfig, ...JSON.parse(data) };
     }
   } catch (err) {
-    console.error("Errore nel caricamento della configurazione PayPal:", err);
+    console.error("Errore nel caricamento locale della configurazione PayPal:", err);
   }
   return { ...defaultPayPalConfig };
 }
 
 let paypalConfig: PayPalConfig = loadPayPalConfig();
 
-function savePayPalConfig() {
+async function getPayPalConfigAsync(): Promise<PayPalConfig> {
+  if (usePostgres) {
+    try {
+      await ensureTablesExist();
+      if (usePostgres) {
+        const { rows } = await sql`SELECT value FROM admin_config WHERE key = 'paypal_config' LIMIT 1;`;
+        if (rows && rows.length > 0 && rows[0].value) {
+          const parsed = JSON.parse(rows[0].value);
+          paypalConfig = { ...defaultPayPalConfig, ...parsed };
+          try {
+            fs.writeFileSync(PAYPAL_CONFIG_FILE, JSON.stringify(paypalConfig, null, 2), "utf-8");
+          } catch (e) {}
+          return paypalConfig;
+        }
+      }
+    } catch (err: any) {
+      console.warn("Avviso: Impossibile recuperare paypal_config da Postgres, uso fallback locale:", err);
+    }
+  }
+
+  try {
+    if (fs.existsSync(PAYPAL_CONFIG_FILE)) {
+      const data = fs.readFileSync(PAYPAL_CONFIG_FILE, "utf-8");
+      paypalConfig = { ...defaultPayPalConfig, ...JSON.parse(data) };
+    }
+  } catch (err) {}
+
+  return paypalConfig;
+}
+
+async function savePayPalConfigAsync(updatedConfig?: Partial<PayPalConfig>): Promise<PayPalConfig> {
+  if (updatedConfig) {
+    paypalConfig = {
+      email: updatedConfig.email !== undefined ? String(updatedConfig.email).trim() : paypalConfig.email,
+      clientId: updatedConfig.clientId !== undefined ? String(updatedConfig.clientId).trim() : paypalConfig.clientId,
+      paypalMeUrl: updatedConfig.paypalMeUrl !== undefined ? String(updatedConfig.paypalMeUrl).trim() : paypalConfig.paypalMeUrl,
+      depositAmount: updatedConfig.depositAmount !== undefined && !isNaN(Number(updatedConfig.depositAmount)) && Number(updatedConfig.depositAmount) > 0 ? Number(updatedConfig.depositAmount) : paypalConfig.depositAmount,
+      currency: updatedConfig.currency !== undefined ? String(updatedConfig.currency).trim() : paypalConfig.currency,
+      environment: updatedConfig.environment === "sandbox" ? "sandbox" : "live",
+      instructions: updatedConfig.instructions !== undefined ? String(updatedConfig.instructions).trim() : paypalConfig.instructions
+    };
+  }
+
   try {
     fs.writeFileSync(PAYPAL_CONFIG_FILE, JSON.stringify(paypalConfig, null, 2), "utf-8");
   } catch (err) {
-    console.error("Errore nel salvataggio della configurazione PayPal:", err);
+    console.error("Errore nel salvataggio locale della configurazione PayPal:", err);
   }
+
+  if (usePostgres) {
+    try {
+      await ensureTablesExist();
+      if (usePostgres) {
+        await sql`
+          INSERT INTO admin_config (key, value)
+          VALUES ('paypal_config', ${JSON.stringify(paypalConfig)})
+          ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+        `;
+      }
+    } catch (err) {
+      console.warn("Avviso: Impossibile salvare paypal_config su Postgres:", err);
+    }
+  }
+
+  return paypalConfig;
 }
 
 interface AdminConfig {
@@ -784,7 +843,7 @@ app.use("/src/assets", express.static(path.join(process.cwd(), "src/assets")));
         experienceId,
         experienceName,
         price: Number(price),
-        paymentMethod: paymentMethod || "PayPal (Acconto €50) + Contanti al campo",
+        paymentMethod: paymentMethod || "PayPal + Contanti al campo",
         status: "confirmed",
         createdAt: new Date().toISOString(),
         instructor: selectedInstructor,
@@ -792,7 +851,9 @@ app.use("/src/assets", express.static(path.join(process.cwd(), "src/assets")));
 
       await saveBookingAsync(newBooking);
 
-      const remainingBalance = Math.max(0, Number(price) - 50);
+      const activePaypalConfig = await getPayPalConfigAsync();
+      const currentDepositAmount = activePaypalConfig.depositAmount || 50;
+      const remainingBalance = Math.max(0, Number(price) - currentDepositAmount);
 
       const emailTextToPilot = `Ciao ${pilotName},
 Hai ricevuto una nuova prenotazione per un volo promozionale in ultraleggero!
@@ -898,34 +959,33 @@ Grazie per aver scelto Duneairpark! Ti aspettiamo per spiccare il volo.`;
   };
 
   // API Route: Public PayPal Configuration
-  app.get("/api/paypal/config", (req, res) => {
+  app.get("/api/paypal/config", async (req, res) => {
+    const config = await getPayPalConfigAsync();
     return res.json({
       success: true,
-      config: paypalConfig
+      config
     });
   });
 
   // API Route: Admin Update PayPal Configuration
-  app.post("/api/admin/paypal-config", checkAdminAuth, (req, res) => {
+  app.post("/api/admin/paypal-config", checkAdminAuth, async (req, res) => {
     try {
       const { email, clientId, paypalMeUrl, depositAmount, currency, environment, instructions } = req.body || {};
 
-      paypalConfig = {
-        email: email ? String(email).trim() : paypalConfig.email,
-        clientId: clientId !== undefined ? String(clientId).trim() : paypalConfig.clientId,
-        paypalMeUrl: paypalMeUrl ? String(paypalMeUrl).trim() : paypalConfig.paypalMeUrl,
-        depositAmount: Number(depositAmount) > 0 ? Number(depositAmount) : paypalConfig.depositAmount,
-        currency: currency ? String(currency).trim() : paypalConfig.currency,
-        environment: environment === "sandbox" ? "sandbox" : "live",
-        instructions: instructions ? String(instructions).trim() : paypalConfig.instructions
-      };
-
-      savePayPalConfig();
+      const updated = await savePayPalConfigAsync({
+        email,
+        clientId,
+        paypalMeUrl,
+        depositAmount,
+        currency,
+        environment,
+        instructions
+      });
 
       return res.json({
         success: true,
-        message: "Configurazione PayPal aggiornata con successo!",
-        config: paypalConfig
+        message: "Configurazione PayPal aggiornata e salvata con successo!",
+        config: updated
       });
     } catch (err: any) {
       console.error("Errore aggiornamento PayPal config:", err);
