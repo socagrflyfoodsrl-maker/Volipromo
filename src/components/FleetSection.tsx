@@ -111,7 +111,7 @@ export default function FleetSection({ onBookFlight }: FleetSectionProps) {
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/30 to-transparent flex flex-col justify-end p-6 text-white">
             <span className="text-[10px] font-mono font-bold text-amber-300 bg-slate-900/80 px-2.5 py-1 rounded-md border border-slate-700/80 w-fit uppercase mb-1">
-              TECNAM P92 ECHO STANDARD • I-DUNE
+              TECNAM P92 ECHO STANDARD • MARCHE: I-6320
             </span>
             <h3 className="text-xl font-display font-black">Sorvola Torre Canne e la Costa dei Trulli</h3>
             <p className="text-xs text-slate-300 mt-1 font-medium">

@@ -145,10 +145,13 @@ export default function FlightReceipt({ booking, showPrintButton = true }: Fligh
 
             <div>
               <span className="text-[9px] uppercase font-bold text-slate-400 block flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-slate-400" /> ESPERIENZA & ISTRUTTORE
+                <ShieldCheck className="w-3 h-3 text-slate-400" /> ESPERIENZA, AEREOCLUB & ISTRUTTORE
               </span>
               <span className="font-bold text-slate-800 block">{booking.experienceName}</span>
               <span className="text-slate-600 text-[11px] block">{booking.instructor || "Francesco Guarini"}</span>
+              <span className="text-sky-700 font-mono text-[10.5px] font-bold block mt-0.5">
+                Velivolo: Tecnam P92 Echo Standard (Marche: I-6320)
+              </span>
             </div>
           </div>
         </div>

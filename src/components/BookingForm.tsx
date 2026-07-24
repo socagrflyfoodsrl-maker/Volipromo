@@ -971,6 +971,10 @@ export default function BookingForm({
                       <span className="text-slate-400">Pilota Assegnato:</span>
                       <span className="font-semibold text-sky-300 text-right">{selectedInstructor}</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Velivolo:</span>
+                      <span className="font-semibold text-amber-300 text-right font-mono">P92 Echo (I-6320)</span>
+                    </div>
                     <div className="flex justify-between pt-2 border-t border-white/10">
                       <span className="text-slate-400">Data e Fascia:</span>
                       <span className="font-bold text-sky-400 text-right">{selectedDate} ({selectedSlot})</span>
