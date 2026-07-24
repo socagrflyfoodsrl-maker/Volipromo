@@ -13,7 +13,7 @@ import {
   Info,
   Award
 } from "lucide-react";
-import aircraftImg from "../assets/images/tecnam_p92_echo_1784875556006.jpg";
+import aircraftImg from "../assets/images/tecnam_p92_i6320_1784876104246.jpg";
 
 interface FleetSectionProps {
   onBookFlight?: () => void;
